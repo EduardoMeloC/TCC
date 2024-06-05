@@ -76,7 +76,7 @@ Scene createScene(){
     Sphere[2] spheres = Sphere[](s1, ground);
     
     Light light = Light(
-        vec3(0. + cos(iTime)*2., 1.5, -4. + sin(iTime)*2.), // position
+        vec3(0. + cos(iTime)*2., 0.5, -5. + sin(iTime)*2.), // position
         vec3(1.), // color
         15. // intensity
     );
@@ -140,9 +140,10 @@ vec3 getLight(Hit hit, Ray ray, Scene scene)
         return hit.material.albedo;
     
     Light light = scene.light;
-    vec3 ldir = normalize(light.pos - hit.point);
-    float r2 = length(ldir);
-    ldir = ldir / r2;
+    vec3 ldir = (light.pos - hit.point);
+    float r = length(light.pos - hit.point);
+    float r2 = r*r;
+    ldir = normalize(ldir);
     
     // cast hard shadow
     float shadowValue = 1.;
@@ -152,8 +153,10 @@ vec3 getLight(Hit hit, Ray ray, Scene scene)
     for(int i = 0; i < 2; i++){
         Hit hit = raySphereIntersection(scene.spheres[i], shadowRay);
         if(hit.isHit){
-            shadowValue = 0.;
-            break;
+            if(length(hit.point - shadowRayOrigin) < r){
+                shadowValue = 0.;
+                break;
+            }
         }
     }
     

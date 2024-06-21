@@ -1,11 +1,14 @@
 #define SHADOW_BIAS 1.e-4
-#define MAX_MARCHING_STEPS 32
-#define MAX_MARCHING_DISTANCE 1000
+#define MAX_MARCHING_STEPS 50
+#define MAX_MARCHING_DISTANCE 1000.
+
+#define SURFACE_DISTANCE .01
 
 #define INF 3.402823466e+38
 #define PI  3.1415926535898
 
 #define NULL_MATERIAL Material(vec3(0.),0.,0.,false)
+#define NULL_CANDIDATE HitCandidate(INF,NULL_MATERIAL);
 #define RAYHIT_INFINITY Hit(vec3(INF),vec3(0.),INF,NULL_MATERIAL,false)
 #define LIGHT_SPHERE Sphere(light.pos,0.1,Material(light.color,0.,0.,false))
 
@@ -47,6 +50,11 @@ struct Scene{
     Light light;
 };
 
+struct HitCandidate{
+    float dist;
+    Material material;
+};
+
 Scene createScene(){
     Material groundMaterial = Material(
         vec3(1.), // albedo
@@ -78,7 +86,7 @@ Scene createScene(){
     Sphere[2] spheres = Sphere[](s1, ground);
     
     Light light = Light(
-        vec3(0. + cos(iTime)*2., 1.5, -4. + sin(iTime)*2.), // position
+        vec3(0. + cos(iTime)*2., 0.5, -5. + sin(iTime)*2.), // position
         vec3(1.), // color
         15. // intensity
     );
@@ -89,48 +97,96 @@ Scene createScene(){
 }
 
 float sphereDistance(vec3 point, Sphere sphere){
-  return distance(point - sphere.pos) - sphere.radius;
+    return length(point- sphere.pos) - sphere.radius;
+}
+
+HitCandidate getDist(vec3 point, Scene scene){
+    HitCandidate minDist = NULL_CANDIDATE;
+
+    for(int i = 0; i < 2; i++){
+        float dist = sphereDistance(point, scene.spheres[i]);
+        
+        if(dist < minDist.dist){
+            minDist.dist = dist;
+            minDist.material = scene.spheres[i].material;
+        }
+    }
+    Light light = scene.light;
+    float lightDist = sphereDistance(point, LIGHT_SPHERE);
+    if(lightDist < minDist.dist){
+        minDist.dist = lightDist;
+        minDist.material = LIGHT_SPHERE.material;
+    }
+    return minDist;
+}
+
+vec3 getNormal(vec3 point,float d, Scene scene){
+    vec2 e = vec2(.01, 0);
+    HitCandidate n1 = getDist(point - e.xyy, scene);
+    HitCandidate n2 = getDist(point - e.yxy, scene);
+    HitCandidate n3 = getDist(point - e.yyx, scene);
+    
+    vec3 stretchedNormal = d-vec3(
+        n1.dist,
+        n2.dist,
+        n3.dist
+    );
+    return normalize(stretchedNormal);
 }
 
 Hit marchRay(Ray ray, Scene scene){
-    Hit closestHit = RAYHIT_INFINITY;
-    
-    for(int i = 0; i < 2; i++){
-        Hit hit = raySphereIntersection(scene.spheres[i], ray);
-        
-        if(hit.dist < closestHit.dist) closestHit = hit;
+    float distToCamera = 0.;
+    bool isHit = false;
+    vec3 marchPos = ray.origin;
+    HitCandidate nextStepHit = NULL_CANDIDATE;
+    for(int stp=0; stp<MAX_MARCHING_STEPS; stp++){
+        marchPos = ray.origin + (distToCamera * ray.direction);
+        nextStepHit = getDist(marchPos, scene);
+        distToCamera += nextStepHit.dist;
+        if(nextStepHit.dist < SURFACE_DISTANCE){
+            isHit = true;
+        }
+        if(distToCamera > MAX_MARCHING_DISTANCE){
+            isHit = false;
+        }
     }
     // render sphere in point light's location
-    Light light = scene.light;
-    Hit lightHit = raySphereIntersection(LIGHT_SPHERE, ray);
-    if(lightHit.dist < closestHit.dist) closestHit = lightHit;
-    
-    return closestHit;
+    // generate Hit
+    Hit hit = Hit(
+        marchPos,
+        getNormal(marchPos,nextStepHit.dist, scene),
+        distToCamera,
+        nextStepHit.material,
+        isHit); 
+    return hit;
 }
 
 vec3 getLight(Hit hit, Ray ray, Scene scene)
 {
+    
     // Unlit material
     if (!hit.material.isLit)
         return hit.material.albedo;
     
     Light light = scene.light;
-    vec3 ldir = normalize(light.pos - hit.point);
-    float r2 = length(ldir);
-    ldir = ldir / r2;
+    vec3 ldir = (light.pos - hit.point);
+    float r = length(light.pos - hit.point);
+    float r2 = r*r;
+    ldir = normalize(ldir);
     
     // cast hard shadow
     float shadowValue = 1.;
     vec3 shadowRayOrigin = hit.point + hit.normal * SHADOW_BIAS;
     vec3 shadowRayDirection = ldir;
     Ray shadowRay = Ray(shadowRayOrigin, shadowRayDirection);
-    for(int i = 0; i < 2; i++){
-        Hit hit = raySphereIntersection(scene.spheres[i], shadowRay);
-        if(hit.isHit){
+    Hit shadowHit = marchRay(shadowRay, scene);
+    if(shadowHit.isHit){
+        if(shadowHit.material != LIGHT_SPHERE.material)
+        if(length(shadowHit.point - shadowRayOrigin) < r){
             shadowValue = 0.;
-            break;
         }
     }
+    
     
     // inv square law
     vec3 li = light.color * (light.intensity / (4. * PI * r2));

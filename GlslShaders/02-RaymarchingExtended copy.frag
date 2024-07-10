@@ -12,6 +12,13 @@
 #define RAYHIT_INFINITY Hit(vec3(INF),vec3(0.),INF,NULL_MATERIAL,false)
 #define LIGHT_SPHERE Sphere(light.pos,0.1,Material(light.color,0.,0.,false))
 
+#define NSPHERES 5
+#define NCAPSULES 0
+#define NTORUSES 0
+#define NBOXES 0
+
+
+
 struct Ray{
     vec3 origin;
     vec3 direction;
@@ -66,10 +73,10 @@ struct Light{
 };
 
 struct Scene{
-    Sphere[2] spheres;
-    Capsule[1] capsules;
-    Torus[1] toruses;
-    Box[1] boxes;
+    Sphere[NSPHERES] spheres;
+    //Capsule[NCAPSULES] capsules;
+    //Torus[NTORUSES] toruses;
+    //Box[NBOXES] boxes;
     Light light;
 };
 
@@ -95,18 +102,36 @@ Scene createScene(){
     );
 
     Sphere s1 = Sphere(
-        vec3(-3., 0., -5.),
+        vec3(0., 0., -5. -1.),
         1.,
         sphereMaterial
     );
     
+    Sphere s2 = Sphere(
+        vec3(2. + sin(iTime)*1., 0., -5. -1.),
+        1.,
+        sphereMaterial
+    );
+
+    Sphere s3 = Sphere(
+        vec3(-2. + sin(iTime)*1.5, 0., -4.5 -1.),
+        0.5,
+        sphereMaterial
+    );
+
+    Sphere s4 = Sphere(
+        vec3(0., 2., -5. -1.),
+        1.,
+        sphereMaterial
+    );
+
     Sphere ground = Sphere(
-        vec3(2., -1001., -5.),
+        vec3(2., -1001., -5. -1.),
         1000.,
         groundMaterial
     );
     
-    Sphere[2] spheres = Sphere[](s1, ground);
+    Sphere[NSPHERES] spheres = Sphere[](s1,s2,s3,s4, ground);
     
     Capsule c1 = Capsule(
         vec3(0. + cos(iTime)*1.5, 0.5, -5.+sin(iTime)*-1.5),
@@ -115,7 +140,7 @@ Scene createScene(){
         sphereMaterial
     );
 
-    Capsule[1] capsules = Capsule[](c1);
+    //Capsule[NCAPSULES] capsules = Capsule[](c1);
 
     Torus t1 = Torus(
         vec3(0., 2., -5),
@@ -124,7 +149,7 @@ Scene createScene(){
         sphereMaterial
     );
 
-    Torus[1] toruses = Torus[](t1);
+    //Torus[NTORUSES] toruses = Torus[](t1);
 
     Box b1 = Box(
         vec3(0., 0., -5.),
@@ -132,15 +157,15 @@ Scene createScene(){
         sphereMaterial
     );
 
-    Box[1] boxes = Box[](b1);
+    //Box[NBOXES] boxes = Box[](b1);
 
     Light light = Light(
-        vec3(1. /*+ cos(iTime)*4.*/, 1., -5. + /*sin(iTime)**/4.), // position
+        vec3(-1. /*+ cos(iTime)*4.*/, 1.5, -5. + /*sin(iTime)**/4.), // position
         vec3(1.), // color
-        70. // intensity
+        100. // intensity
     );
     
-    Scene scene = Scene(spheres, capsules, toruses, boxes, light);
+    Scene scene = Scene(spheres/*, capsules, toruses, boxes*/, light);
     return scene;
 }
 
@@ -177,10 +202,15 @@ float opSmoothUnion( float d1, float d2, float k ) {
     return mix( d2, d1, h ) - k*h*(1.0-h);
 }
 
+float opSmoothSubtraction( float d1, float d2, float k ) {
+    float h = clamp( 0.5 - 0.5*(d2+d1)/k, 0.0, 1.0 );
+    return mix( d2, -d1, h ) + k*h*(1.0-h);
+}
+
 HitCandidate getDist(vec3 point, Scene scene){
     HitCandidate minDist = NULL_CANDIDATE;
 
-    for(int i = 0; i < 2; i++){
+    for(int i = 4; i < NSPHERES; i++){
         float dist = sphereDistance(point, scene.spheres[i]);
         
         if(dist < minDist.dist){
@@ -189,7 +219,7 @@ HitCandidate getDist(vec3 point, Scene scene){
         }
     }
 
-    for(int i = 0; i < 1; i++){
+    /*for(int i = 0; i < 1; i++){
         float dist = capsuleDistance(point, scene.capsules[i]);
         
         if(dist < minDist.dist){
@@ -214,18 +244,23 @@ HitCandidate getDist(vec3 point, Scene scene){
             minDist.dist = dist;
             minDist.material = scene.boxes[i].material;
         }
-    }
+    }*/
 
-    float dist1 = boxDistance(point, scene.boxes[0]);
-    float dist2 = capsuleDistance(point, scene.capsules[0]);
-    float dist3 = torusDistance(point, scene.toruses[0]);
+    float dist0 = sphereDistance(point, scene.spheres[0]);
+    float dist1 = sphereDistance(point, scene.spheres[1]);
+    float dist2 = sphereDistance(point, scene.spheres[2]);
+    float dist3 = sphereDistance(point, scene.spheres[3]);
 
-    float dist = opSmoothUnion(dist1,dist2,2.);
-    dist = opSmoothUnion(dist,dist3,0.8);
+    float dist = opSmoothUnion(dist0,dist1,1.5);
+    dist = opSmoothUnion(dist,dist3,1.+ cos(iTime)*0.5);
+    dist = opSmoothSubtraction(dist2,dist,0.5);
+
     if(dist < minDist.dist){
         minDist.dist = dist;
-        minDist.material = scene.boxes[0].material;
+        minDist.material = scene.spheres[0].material;
     }
+
+    
 
     Light light = scene.light;
     float lightDist = sphereDistance(point, LIGHT_SPHERE);

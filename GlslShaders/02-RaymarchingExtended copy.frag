@@ -1,3 +1,7 @@
+#iKeyboard
+#iFirstPersonControls
+
+
 #define SHADOW_BIAS 1.e-4
 #define MAX_MARCHING_STEPS 50
 #define MAX_MARCHING_DISTANCE 1000.
@@ -16,8 +20,6 @@
 #define NCAPSULES 0
 #define NTORUSES 0
 #define NBOXES 0
-
-
 
 struct Ray{
     vec3 origin;
@@ -73,10 +75,10 @@ struct Light{
 };
 
 struct Scene{
-    Sphere[NSPHERES] spheres;
-    //Capsule[NCAPSULES] capsules;
-    //Torus[NTORUSES] toruses;
-    //Box[NBOXES] boxes;
+    Sphere[NSPHERES+1] spheres;
+    Capsule[NCAPSULES+1] capsules;
+    Torus[NTORUSES+1] toruses;
+    Box[NBOXES+1] boxes;
     Light light;
 };
 
@@ -86,6 +88,7 @@ struct HitCandidate{
 };
 
 Scene createScene(){
+    
     Material groundMaterial = Material(
         vec3(1.), // albedo
         150., // specular power
@@ -99,6 +102,32 @@ Scene createScene(){
         150., // specular power
         0.5, // specular intensity
         true // is lit
+    );
+
+     Sphere defaultSphere = Sphere(
+        vec3(0., 0., -5. -1.),
+        1.,
+        sphereMaterial
+    );
+
+    Capsule defaultCapsule = Capsule(
+        vec3(0. + cos(iTime)*1.5, 0.5, -5.+sin(iTime)*-1.5),
+        vec3(2., 1., -5.),
+        0.5,
+        sphereMaterial
+    );
+
+    Torus defaultorus = Torus(
+        vec3(0., 2., -5),
+        2.,
+        0.5,
+        sphereMaterial
+    );
+
+    Box defaultBox = Box(
+        vec3(0., 0., -5.),
+        vec3(1., 1., 1.),
+        sphereMaterial
     );
 
     Sphere s1 = Sphere(
@@ -131,46 +160,26 @@ Scene createScene(){
         groundMaterial
     );
     
-    Sphere[NSPHERES] spheres = Sphere[](s1,s2,s3,s4, ground);
+    Sphere[NSPHERES+1] spheres = Sphere[](s1,s2,s3,s4, ground, defaultSphere);
     
-    Capsule c1 = Capsule(
-        vec3(0. + cos(iTime)*1.5, 0.5, -5.+sin(iTime)*-1.5),
-        vec3(2., 1., -5.),
-        0.5,
-        sphereMaterial
-    );
+    Capsule[NCAPSULES+1] capsules = Capsule[](defaultCapsule);
 
-    //Capsule[NCAPSULES] capsules = Capsule[](c1);
+    Torus[NTORUSES+1] toruses = Torus[](defaultorus);
 
-    Torus t1 = Torus(
-        vec3(0., 2., -5),
-        2.,
-        0.5,
-        sphereMaterial
-    );
-
-    //Torus[NTORUSES] toruses = Torus[](t1);
-
-    Box b1 = Box(
-        vec3(0., 0., -5.),
-        vec3(1., 1., 1.),
-        sphereMaterial
-    );
-
-    //Box[NBOXES] boxes = Box[](b1);
+    Box[NBOXES+1] boxes = Box[](defaultBox);
 
     Light light = Light(
-        vec3(-1. /*+ cos(iTime)*4.*/, 1.5, -5. + /*sin(iTime)**/4.), // position
+        (inverse(iViewMatrix)*vec4(0., 0., 1., 1.)).xyz, // position
         vec3(1.), // color
         100. // intensity
     );
     
-    Scene scene = Scene(spheres/*, capsules, toruses, boxes*/, light);
+    Scene scene = Scene(spheres, capsules, toruses, boxes, light);
     return scene;
 }
 
 float sphereDistance(vec3 point, Sphere sphere){
-    return length(point- sphere.pos) - sphere.radius;
+    return length(point) - sphere.radius;
 }
 
 float capsuleDistance(vec3 point, Capsule capsule){
@@ -186,7 +195,7 @@ float capsuleDistance(vec3 point, Capsule capsule){
 }
 
 float torusDistance(vec3 point, Torus torus){
-    vec3 p = point - torus.point;
+    vec3 p = point;
     vec2 distToInnerCircle = vec2(length(p.xz)-torus.radius1, p.y);
     return length(distToInnerCircle) - torus.radius2;
 }
@@ -211,7 +220,7 @@ HitCandidate getDist(vec3 point, Scene scene){
     HitCandidate minDist = NULL_CANDIDATE;
 
     for(int i = 4; i < NSPHERES; i++){
-        float dist = sphereDistance(point, scene.spheres[i]);
+        float dist = sphereDistance(point-scene.spheres[i].pos, scene.spheres[i]);
         
         if(dist < minDist.dist){
             minDist.dist = dist;
@@ -219,7 +228,7 @@ HitCandidate getDist(vec3 point, Scene scene){
         }
     }
 
-    /*for(int i = 0; i < 1; i++){
+    for(int i = 0; i < NCAPSULES; i++){
         float dist = capsuleDistance(point, scene.capsules[i]);
         
         if(dist < minDist.dist){
@@ -228,7 +237,7 @@ HitCandidate getDist(vec3 point, Scene scene){
         }
     }
 
-    for(int i = 0; i < 1; i++){
+    for(int i = 0; i < NTORUSES; i++){
         float dist = torusDistance(point, scene.toruses[i]);
         
         if(dist < minDist.dist){
@@ -237,37 +246,51 @@ HitCandidate getDist(vec3 point, Scene scene){
         }
     }
 
-    for(int i = 0; i < 1; i++){
+    for(int i = 0; i < NBOXES; i++){
         float dist = boxDistance(point, scene.boxes[i]);
         
         if(dist < minDist.dist){
             minDist.dist = dist;
             minDist.material = scene.boxes[i].material;
         }
-    }*/
+    }
 
-    float dist0 = sphereDistance(point, scene.spheres[0]);
-    float dist1 = sphereDistance(point, scene.spheres[1]);
-    float dist2 = sphereDistance(point, scene.spheres[2]);
-    float dist3 = sphereDistance(point, scene.spheres[3]);
+    // float dist0 = sphereDistance(point, scene.spheres[0]);
+    // float dist1 = sphereDistance(point, scene.spheres[1]);
+    // float dist2 = sphereDistance(point, scene.spheres[2]);
+    // float dist3 = sphereDistance(point, scene.spheres[3]);
 
-    float dist = opSmoothUnion(dist0,dist1,1.5);
-    dist = opSmoothUnion(dist,dist3,1.+ cos(iTime)*0.5);
-    dist = opSmoothSubtraction(dist2,dist,0.5);
+    // float dist = opSmoothUnion(dist0,dist1,1.5);
+    // dist = opSmoothUnion(dist,dist3,1.+ cos(iTime)*0.5);
+    // dist = opSmoothSubtraction(dist2,dist,0.5);
+
+    //if(dist < minDist.dist){
+    //    minDist.dist = dist;
+    //    minDist.material = scene.spheres[0].material;
+    //}
+
+    Material mat = Material(
+        vec3(1.0, 0.0, 0.0), // albedo
+        150., // specular power
+        0.5, // specular intensity
+        true // is lit
+    );
+
+    vec3 s = vec3(14.,2.,14.);
+    vec3 q = point - s*round(point/s);
+    float dist = torusDistance(q-vec3(0.,0.,0), Torus(vec3(0.), 7.,1.,mat));
 
     if(dist < minDist.dist){
-        minDist.dist = dist;
-        minDist.material = scene.spheres[0].material;
+       minDist.dist = dist;
+       minDist.material = scene.spheres[0].material;
     }
 
-    
-
-    Light light = scene.light;
-    float lightDist = sphereDistance(point, LIGHT_SPHERE);
-    if(lightDist < minDist.dist){
-        minDist.dist = lightDist;
-        minDist.material = LIGHT_SPHERE.material;
-    }
+    // Light light = scene.light;
+    // float lightDist = sphereDistance(point-LIGHT_SPHERE.pos, LIGHT_SPHERE);
+    // if(lightDist < minDist.dist){
+    //     minDist.dist = lightDist;
+    //     minDist.material = LIGHT_SPHERE.material;
+    // }
     return minDist;
 }
 
@@ -354,20 +377,45 @@ vec3 getLight(Hit hit, Ray ray, Scene scene)
     return (diffuse + specular * hit.material.specularIntensity) * shadowValue;
 }
 
+mat4 lookAt(vec3 eye, vec3 center, vec3 up) {
+    // Based on gluLookAt man page
+    vec3 f = normalize(center - eye);
+    vec3 s = normalize(cross(f, up));
+    vec3 u = cross(s, f);
+    return mat4(
+        vec4(s, 0.0),
+        vec4(u, 0.0),
+        vec4(-f, 0.0),
+        vec4(0.0, 0.0, 0.0, 1.)
+    );
+}
+
+
+
 void mainImage( out vec4 fragColor, in vec2 fragCoord )
 {
     Scene scene = createScene();
 
     vec2 uv = (fragCoord - .5*iResolution.xy) / iResolution.y;
     vec3 color = vec3(0.);
-    
+    //vec3 eye = 10.0*normalize(vec3(0.5-iMouse.xy/iResolution.xy,0.5)); // Position of the eye
+  
     // Creating Ray
     vec3 rayOrigin = vec3(0., 0., 1.);
-    vec3 rayDirection = normalize(vec3(uv.xy, 0.) - rayOrigin);
+    mat4 view = inverse(iViewMatrix); //lookAt(eye,rayOrigin,vec3(0.0,1.0,0.0));
+    //iViewMatrix = mat4(vec4(1.,0.,0.,0.),vec4(0.,1.,0.,0.),vec4(0.,0.,1.,0.),vec4(0.,0.,0.,1.));
+    vec3 rayDirection = vec3(uv.x,uv.y, 0.) - rayOrigin;
+    rayDirection = normalize(rayDirection);
+    rayDirection = mat3(view)*rayDirection;
+    rayOrigin = (view*(vec4(rayOrigin,1.))).xyz;
+
+    //rayOrigin = rayOrigin - vec3(view[0][3],view[1][3],view[2][3]);
+
     Ray ray = Ray(rayOrigin, rayDirection);
     
     // Marching Ray
     Hit hit = marchRay(ray, scene);
+    
     
     if (hit.isHit) color = getLight(hit, ray, scene);
     

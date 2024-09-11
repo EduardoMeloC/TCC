@@ -179,7 +179,6 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
 {
     Scene scene = createScene();
 
-    // uvs from (-1.0 to 1.0)
     vec2 uv = (fragCoord - .5*iResolution.xy) / iResolution.y;
     vec3 color = vec3(0.);
     

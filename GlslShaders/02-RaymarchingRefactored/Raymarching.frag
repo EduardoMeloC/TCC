@@ -1,104 +1,16 @@
 #define SHADOW_BIAS 1.e-4
-#define MAX_MARCHING_STEPS 50
-#define MAX_MARCHING_DISTANCE 1000.
+#define MAX_MARCHING_STEPS 100
+#define MAX_MARCHING_DISTANCE 100.
 
-#define SURFACE_DISTANCE .01
-
-#define INF 3.402823466e+38
-#define PI  3.1415926535898
+#define SURFACE_DISTANCE .001
 
 #define NULL_MATERIAL Material(vec3(0.),0.,0.,false)
 #define NULL_CANDIDATE HitCandidate(INF,NULL_MATERIAL);
 #define RAYHIT_INFINITY Hit(vec3(INF),vec3(0.),INF,NULL_MATERIAL,false)
 #define LIGHT_SPHERE Sphere(light.pos,0.1,Material(light.color,0.,0.,false))
 
-struct Ray{
-    vec3 origin;
-    vec3 direction;
-};
-
-struct Material{
-    vec3 albedo;
-    float specularPower;
-    float specularIntensity;
-    bool isLit;
-};
-
-struct Hit{
-    vec3 point;
-    vec3 normal;
-    float dist;
-    Material material;
-    bool isHit;
-};
-
-
-struct Sphere{
-    vec3 pos;
-    float radius;
-    Material material;
-};
-
-struct Light{
-    vec3 pos;
-    vec3 color;
-    float intensity;
-};
-
-struct Scene{
-    Sphere[2] spheres;
-    Light light;
-};
-
-struct HitCandidate{
-    float dist;
-    Material material;
-};
-
-Scene createScene(){
-    Material groundMaterial = Material(
-        vec3(1.), // albedo
-        150., // specular power
-        0., // specular intensity
-        true // is lit
-    );
-
-
-    Material sphereMaterial = Material(
-        vec3(1.0, 0.0, 0.0), // albedo
-        150., // specular power
-        0.5, // specular intensity
-        true // is lit
-    );
-
-    Sphere s1 = Sphere(
-        vec3(0., 0., -5.),
-        1.,
-        sphereMaterial
-    );
-    
-    Sphere ground = Sphere(
-        vec3(2., -1001., -5.),
-        1000.,
-        groundMaterial
-    );
-    
-    Sphere[2] spheres = Sphere[](s1, ground);
-    
-    Light light = Light(
-        vec3(0. + cos(iTime)*2., 0.5, -5. + sin(iTime)*2.), // position
-        vec3(1.), // color
-        15. // intensity
-    );
-     
-    
-    Scene scene = Scene(spheres, light);
-    return scene;
-}
-
-float sphereDistance(vec3 point, Sphere sphere){
-    return length(point- sphere.pos) - sphere.radius;
-}
+#include "Core.frag"
+#include "Scene.frag"
 
 HitCandidate getDist(vec3 point, Scene scene){
     HitCandidate minDist = NULL_CANDIDATE;
@@ -111,6 +23,7 @@ HitCandidate getDist(vec3 point, Scene scene){
             minDist.material = scene.spheres[i].material;
         }
     }
+    // render sphere in point light's location
     Light light = scene.light;
     float lightDist = sphereDistance(point, LIGHT_SPHERE);
     if(lightDist < minDist.dist){
@@ -150,7 +63,6 @@ Hit marchRay(Ray ray, Scene scene){
             isHit = false;
         }
     }
-    // render sphere in point light's location
     // generate Hit
     Hit hit = Hit(
         marchPos,

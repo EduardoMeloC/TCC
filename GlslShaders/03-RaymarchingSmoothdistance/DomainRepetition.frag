@@ -1,5 +1,12 @@
 #iKeyboard
 #iFirstPersonControls
+/*
+WASD move
+R|F up | down
+Q|E roll
+up|down pitch
+left|right yaw
+*/
 
 
 #define SHADOW_BIAS 1.e-4

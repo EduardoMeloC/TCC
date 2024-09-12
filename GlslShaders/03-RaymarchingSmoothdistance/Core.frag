@@ -42,37 +42,40 @@ struct Sphere{
 };
 
 struct Capsule{
-    vec3 point1;
-    vec3 point2;
+    vec3 pos1;
+    vec3 pos2;
     float radius;
     Material material;
 };
 
 struct Torus{
-    vec3 point;
+    vec3 pos;
     float radius1;
     float radius2;
     Material material;
 };
 
 struct Box{
-    vec3 point;
+    vec3 pos;
     vec3 size;
     Material material;
 };
 
 float sphereDistance(vec3 point, Sphere sphere){
-    return length(point- sphere.pos) - sphere.radius;
+    return length(point) - sphere.radius;
 }
 
 float capsuleDistance(vec3 point, Capsule capsule){
-    vec3 p1ToP2 = capsule.point2 - capsule.point1;
-    vec3 p1ToP = point - capsule.point1;
+    vec3 p1 = capsule.pos1 - (capsule.pos1 + capsule.pos2)*0.5;
+    vec3 p2 = capsule.pos2 - (capsule.pos1 + capsule.pos2)*0.5;
+
+    vec3 p1ToP2 = p2 - p1;
+    vec3 p1ToP = point - p1;
 
     float closestDist = dot(p1ToP2,p1ToP) / dot(p1ToP2,p1ToP2);
     closestDist = clamp(closestDist, 0., 1.);
 
-    vec3 closest = capsule.point1 + p1ToP2 * closestDist;
+    vec3 closest = p1 + p1ToP2 * closestDist;
 
     return length(point - closest) - capsule.radius;
 }
@@ -84,7 +87,7 @@ float torusDistance(vec3 point, Torus torus){
 }
 
 float boxDistance(vec3 point, Box box){
-    vec3 p = point - box.point;
+    vec3 p = point; 
     vec3 q = abs(p) - box.size;
     return length(max(q,0.)) + min(max(q.x,max(q.y,q.z)),0.);
 }

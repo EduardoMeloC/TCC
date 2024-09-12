@@ -26,7 +26,7 @@ HitCandidate getDist(vec3 point, Scene scene){
     HitCandidate minDist = NULL_CANDIDATE;
 
     for(int i = 0; i < 2; i++){
-        float dist = sphereDistance(point, scene.spheres[i]);
+        float dist = sphereDistance(point - scene.spheres[i].pos, scene.spheres[i]);
         
         if(dist < minDist.dist){
             minDist.dist = dist;
@@ -35,7 +35,7 @@ HitCandidate getDist(vec3 point, Scene scene){
     }
 
     for(int i = 0; i < 1; i++){
-        float dist = capsuleDistance(point, scene.capsules[i]);
+        float dist = capsuleDistance(point - (scene.capsules[i].pos1 + scene.capsules[i].pos2)*0.5, scene.capsules[i]);
         
         if(dist < minDist.dist){
             minDist.dist = dist;
@@ -44,7 +44,7 @@ HitCandidate getDist(vec3 point, Scene scene){
     }
 
     for(int i = 0; i < 1; i++){
-        float dist = torusDistance(point, scene.toruses[i]);
+        float dist = torusDistance(point - scene.toruses[i].pos, scene.toruses[i]);
         
         if(dist < minDist.dist){
             minDist.dist = dist;
@@ -53,7 +53,7 @@ HitCandidate getDist(vec3 point, Scene scene){
     }
 
     for(int i = 0; i < 1; i++){
-        float dist = boxDistance(point, scene.boxes[i]);
+        float dist = boxDistance(point - scene.boxes[i].pos, scene.boxes[i]);
         
         if(dist < minDist.dist){
             minDist.dist = dist;
@@ -61,9 +61,9 @@ HitCandidate getDist(vec3 point, Scene scene){
         }
     }
 
-    float dist1 = boxDistance(point, scene.boxes[0]);
-    float dist2 = capsuleDistance(point, scene.capsules[0]);
-    float dist3 = torusDistance(point, scene.toruses[0]);
+    float dist1 = boxDistance(point - scene.boxes[0].pos, scene.boxes[0]);
+    float dist2 = capsuleDistance(point - (scene.capsules[0].pos1 + scene.capsules[0].pos2)*0.5, scene.capsules[0]);
+    float dist3 = torusDistance(point - scene.toruses[0].pos, scene.toruses[0]);
 
     float dist = opSmoothUnion(dist1,dist2,2.);
     dist = opSmoothUnion(dist,dist3,0.8);
@@ -73,7 +73,7 @@ HitCandidate getDist(vec3 point, Scene scene){
     }
 
     Light light = scene.light;
-    float lightDist = sphereDistance(point, LIGHT_SPHERE);
+    float lightDist = sphereDistance(point - scene.light.pos, LIGHT_SPHERE);
     if(lightDist < minDist.dist){
         minDist.dist = lightDist;
         minDist.material = LIGHT_SPHERE.material;

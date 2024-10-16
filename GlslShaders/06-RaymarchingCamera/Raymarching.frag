@@ -179,12 +179,12 @@ mat4 lookAt(vec3 eye, vec3 center, vec3 up) {
 
 void Camera(in vec2 fragCoord, out vec3 ro, out vec3 rd) 
 {
-    ro = load(POSITION).xyz - vec3(0., 0.8, 0.);
-    vec2 m = load(VMOUSE).xy/iResolution.x + vec2(PI, 0.);
+    ro = load(POSITION).xyz;
+    vec2 m = load(VMOUSE).xy/iResolution.x;
     
     float a = 1.0/max(iResolution.x, iResolution.y);
     rd = normalize(vec3((fragCoord - iResolution.xy*0.5)*a, 0.5));
-    
+
     rd = CameraRotation(m) * rd;
 }
 

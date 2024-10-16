@@ -11,7 +11,6 @@
 
 #include "Core.frag"
 #include "Scene.frag"
-#include "Common.frag"
 
 #iChannel0 "CameraBuffer.frag"
 

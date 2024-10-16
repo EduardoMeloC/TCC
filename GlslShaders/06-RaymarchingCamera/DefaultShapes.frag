@@ -1,5 +1,5 @@
-#ifndef SCENE_H
-#define SCENE_H
+#ifndef SHAPES_H
+#define SHAPES_H
 
 #include "Core.frag"
 

@@ -1,7 +1,7 @@
 // Created by genis sole - 2016
 // License Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International.
 
-#include "Common.frag"
+#include "Core.frag"
 #iChannel0 "CameraBuffer.frag"
 
 #iKeyboard

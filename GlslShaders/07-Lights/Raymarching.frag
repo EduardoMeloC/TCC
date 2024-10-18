@@ -1,4 +1,4 @@
-#define SHADOW_BIAS 1.e-4
+#define SHADOW_BIAS 1.e-3
 #define MAX_MARCHING_STEPS 100
 #define MAX_MARCHING_DISTANCE 100.
 
@@ -24,7 +24,7 @@ const ivec2 VMOUSE = ivec2(1, 1);
 HitCandidate getDist(vec3 point, Scene scene){
     HitCandidate minDist = NULL_CANDIDATE;
 
-    for(int i = 0; i < 2; i++){
+    for(int i = 0; i < NSPHERES; i++){
         float dist = sphereDistance(point - scene.spheres[i].pos, scene.spheres[i]);
         
         if(dist < minDist.dist){
@@ -33,49 +33,14 @@ HitCandidate getDist(vec3 point, Scene scene){
         }
     }
 
-    for(int i = 0; i < 1; i++){
-        float dist = capsuleDistance(point - (scene.capsules[i].pos1 + scene.capsules[i].pos2)*0.5, scene.capsules[i]);
-        
-        if(dist < minDist.dist){
-            minDist.dist = dist;
-            minDist.material = scene.capsules[i].material;
+    // render sphere in point light's location
+    for(int i = 0; i < NLIGHTS; i++){
+        PointLight light = scene.lights[i];
+        float lightDist = sphereDistance(point - scene.lights[i].pos, LIGHT_SPHERE);
+        if(lightDist < minDist.dist){
+            minDist.dist = lightDist;
+            minDist.material = LIGHT_SPHERE.material;
         }
-    }
-
-    for(int i = 0; i < 1; i++){
-        float dist = torusDistance(point - scene.toruses[i].pos, scene.toruses[i]);
-        
-        if(dist < minDist.dist){
-            minDist.dist = dist;
-            minDist.material = scene.toruses[i].material;
-        }
-    }
-
-    for(int i = 0; i < 1; i++){
-        float dist = boxDistance(point - scene.boxes[i].pos, scene.boxes[i]);
-        
-        if(dist < minDist.dist){
-            minDist.dist = dist;
-            minDist.material = scene.boxes[i].material;
-        }
-    }
-
-    float dist1 = boxDistance(point - scene.boxes[0].pos, scene.boxes[0]);
-    float dist2 = capsuleDistance(point - (scene.capsules[0].pos1 + scene.capsules[0].pos2)*0.5, scene.capsules[0]);
-    float dist3 = torusDistance(point - scene.toruses[0].pos, scene.toruses[0]);
-
-    float dist = opSmoothUnion(dist1,dist2,2.);
-    dist = opSmoothUnion(dist,dist3,0.8);
-    if(dist < minDist.dist){
-        minDist.dist = dist;
-        minDist.material = scene.boxes[0].material;
-    }
-
-    Light light = scene.light;
-    float lightDist = sphereDistance(point - scene.light.pos, LIGHT_SPHERE);
-    if(lightDist < minDist.dist){
-        minDist.dist = lightDist;
-        minDist.material = LIGHT_SPHERE.material;
     }
     return minDist;
 }
@@ -110,8 +75,6 @@ Hit marchRay(Ray ray, Scene scene){
             isHit = false;
         }
     }
-    // render sphere in point light's location
-    // generate Hit
     Hit hit = Hit(
         marchPos,
         getNormal(marchPos,nextStepHit.dist, scene),
@@ -128,39 +91,43 @@ vec3 getLight(Hit hit, Ray ray, Scene scene)
     if (!hit.material.isLit)
         return hit.material.albedo;
     
-    Light light = scene.light;
-    vec3 ldir = (light.pos - hit.point);
-    float r = length(light.pos - hit.point);
-    float r2 = r*r;
-    ldir = normalize(ldir);
-    
-    // cast hard shadow
-    float shadowValue = 1.;
-    vec3 shadowRayOrigin = hit.point + hit.normal * SHADOW_BIAS;
-    vec3 shadowRayDirection = ldir;
-    Ray shadowRay = Ray(shadowRayOrigin, shadowRayDirection);
-    Hit shadowHit = marchRay(shadowRay, scene);
-    if(shadowHit.isHit){
-        if(shadowHit.material != LIGHT_SPHERE.material)
-        if(length(shadowHit.point - shadowRayOrigin) < r){
-            shadowValue = 0.;
+    vec3 outputColor = vec3(0.);
+    for(int i=0; i < NLIGHTS; i++) {
+        PointLight light = scene.lights[i];
+        vec3 ldir = (light.pos - hit.point);
+        float r = length(ldir);
+        float r2 = r*r;
+        ldir = normalize(ldir);
+        
+        // cast hard shadow
+        float shadowValue = 1.;
+        vec3 shadowRayOrigin = hit.point + hit.normal * SHADOW_BIAS;
+        vec3 shadowRayDirection = ldir;
+        Ray shadowRay = Ray(shadowRayOrigin, shadowRayDirection);
+        Hit shadowHit = marchRay(shadowRay, scene);
+        if(shadowHit.isHit){
+            if(shadowHit.material != LIGHT_SPHERE.material)
+            if(length(shadowHit.point - shadowRayOrigin) < r+2.){
+                shadowValue = 0.4;
+            }
         }
+        
+        
+        // inv square law
+        vec3 li = light.color * (light.intensity / (4. * PI * r2));
+        // lambert
+        float lv = clamp(dot(ldir, hit.normal), 0., 1.);
+        
+        // specular (Phong)
+        vec3 R = reflect(ldir, hit.normal);
+        vec3 specular = li * pow(max(0.f, dot(R, ray.direction)), hit.material.specularPower);
+        
+        vec3 albedo = hit.material.albedo;
+        vec3 diffuse = albedo * li * lv;
+        
+        outputColor += (diffuse + specular * hit.material.specularIntensity) * shadowValue;
     }
-    
-    
-    // inv square law
-    vec3 li = light.color * (light.intensity / (4. * PI * r2));
-    // lambert
-    float lv = max(dot(ldir, hit.normal), 0.);
-    
-    // specular (Phong)
-    vec3 R = reflect(ldir, hit.normal);
-    vec3 specular = li * pow(max(0.f, dot(R, ray.direction)), hit.material.specularPower);
-    
-    vec3 albedo = hit.material.albedo;
-    vec3 diffuse = albedo * li * lv;
-    
-    return (diffuse + specular * hit.material.specularIntensity) * shadowValue;
+    return outputColor;
 }
 
 mat4 lookAt(vec3 eye, vec3 center, vec3 up) {
@@ -206,6 +173,7 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
     Hit hit = marchRay(ray, scene);
     
     if (hit.isHit) color = getLight(hit, ray, scene);
+    // else color = mix(vec3(0., 0.2, 0.5), vec3(0.4, 0.8, .9), uv.y);
     
     // Output to screen
     fragColor = vec4(color,1.0);

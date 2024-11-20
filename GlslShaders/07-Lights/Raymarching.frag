@@ -139,7 +139,7 @@ vec3 getLight(Hit hit, Ray ray, in Scene scene)
         Ray shadowRay = Ray(shadowRayOrigin, shadowRayDirection);
         Hit shadowHit = marchRay(shadowRay, scene);
         if(shadowHit.isHit){
-            if(!shadowHit.material.isLit)
+            if(shadowHit.material.isLit)
                     shadowValue = 0.4;
         }
         

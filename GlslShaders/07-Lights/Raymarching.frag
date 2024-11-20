@@ -84,7 +84,7 @@ Hit marchRay(Ray ray, Scene scene){
     return hit;
 }
 
-vec3 getLight(Hit hit, Ray ray, Scene scene)
+vec3 getLight(Hit hit, Ray ray, in Scene scene)
 {
     
     // Unlit material
@@ -125,9 +125,39 @@ vec3 getLight(Hit hit, Ray ray, Scene scene)
         vec3 albedo = hit.material.albedo;
         vec3 diffuse = albedo * li * lv;
         
-        outputColor += (diffuse + specular * hit.material.specularIntensity) * shadowValue;
+        outputColor += (diffuse + specular * hit.material.specularIntensity) * shadowValue; 
     }
-    return outputColor;
+
+    for(int i=0; i < 1; i++) {
+        DirectionalLight light = scene.dirLights[i];
+        vec3 ldir = -normalize(light.direction);
+
+        // cast hard shadow
+        float shadowValue = 1.;
+        vec3 shadowRayOrigin = hit.point + hit.normal * SHADOW_BIAS;
+        vec3 shadowRayDirection = ldir;
+        Ray shadowRay = Ray(shadowRayOrigin, shadowRayDirection);
+        Hit shadowHit = marchRay(shadowRay, scene);
+        if(shadowHit.isHit){
+            // if(shadowHit.material != LIGHT_SPHERE.material)
+                    shadowValue = 0.4;
+        }
+        
+        
+        vec3 li = light.color * (light.intensity / (4. * PI));
+        // lambert
+        float lv = clamp(dot(ldir, hit.normal), 0., 1.);
+        
+        // specular (Phong)
+        vec3 R = reflect(ldir, hit.normal);
+        vec3 specular = li * pow(max(0.f, dot(R, ray.direction)), hit.material.specularPower);
+        
+        vec3 albedo = hit.material.albedo;
+        vec3 diffuse = albedo * li * lv;
+        
+        outputColor += (diffuse + specular * hit.material.specularIntensity) * shadowValue; 
+    }
+    return outputColor + scene.ambientLight;
 }
 
 mat4 lookAt(vec3 eye, vec3 center, vec3 up) {

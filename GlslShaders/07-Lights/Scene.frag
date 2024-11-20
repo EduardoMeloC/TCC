@@ -9,6 +9,8 @@
 struct Scene{
     Sphere[NSPHERES] spheres;
     PointLight[NLIGHTS] lights;
+    DirectionalLight[1] dirLights;
+    vec3 ambientLight;
 };
 
 Scene createScene(){
@@ -74,8 +76,17 @@ Scene createScene(){
         150. // intensity
     );
 
+    DirectionalLight[1] dirLights;
+
+    dirLights[0] = DirectionalLight(
+        normalize(vec3(1., -1., 0.)),
+        vec3(0.3, 0.8, 0.7),
+        10.
+    );
+
+    vec3 ambientLight = dirLights[0].color * 0.15;
     
-    Scene scene = Scene(spheres, lights);
+    Scene scene = Scene(spheres, lights, dirLights, ambientLight);
     return scene;
 }
 

@@ -106,8 +106,8 @@ vec3 getLight(Hit hit, Ray ray, in Scene scene)
         Ray shadowRay = Ray(shadowRayOrigin, shadowRayDirection);
         Hit shadowHit = marchRay(shadowRay, scene);
         if(shadowHit.isHit){
-            if(shadowHit.material != LIGHT_SPHERE.material)
-            if(length(shadowHit.point - shadowRayOrigin) < r+2.){
+            if(shadowHit.material.isLit)
+            if(length(shadowHit.point - shadowRayOrigin) < r){
                 shadowValue = 0.4;
             }
         }
@@ -139,7 +139,7 @@ vec3 getLight(Hit hit, Ray ray, in Scene scene)
         Ray shadowRay = Ray(shadowRayOrigin, shadowRayDirection);
         Hit shadowHit = marchRay(shadowRay, scene);
         if(shadowHit.isHit){
-            // if(shadowHit.material != LIGHT_SPHERE.material)
+            if(!shadowHit.material.isLit)
                     shadowValue = 0.4;
         }
         

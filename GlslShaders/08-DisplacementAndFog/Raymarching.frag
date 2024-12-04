@@ -34,14 +34,14 @@ HitCandidate getDist(vec3 point, Scene scene){
     }
 
     // render sphere in point light's location
-    for(int i = 0; i < NLIGHTS; i++){
-        PointLight light = scene.lights[i];
-        float lightDist = sphereDistance(point - scene.lights[i].pos, LIGHT_SPHERE);
-        if(lightDist < minDist.dist){
-            minDist.dist = lightDist;
-            minDist.material = LIGHT_SPHERE.material;
-        }
-    }
+    // for(int i = 0; i < NLIGHTS; i++){
+    //     PointLight light = scene.lights[i];
+    //     float lightDist = sphereDistance(point - scene.lights[i].pos, LIGHT_SPHERE);
+    //     if(lightDist < minDist.dist){
+    //         minDist.dist = lightDist;
+    //         minDist.material = LIGHT_SPHERE.material;
+    //     }
+    // }
     return minDist;
 }
 
@@ -86,7 +86,6 @@ Hit marchRay(Ray ray, Scene scene){
 
 vec3 getLight(Hit hit, Ray ray, in Scene scene)
 {
-    
     // Unlit material
     if (!hit.material.isLit)
         return hit.material.albedo;
@@ -111,7 +110,6 @@ vec3 getLight(Hit hit, Ray ray, in Scene scene)
                 shadowValue = 0.4;
             }
         }
-        
         
         // inv square law
         vec3 li = light.color * (light.intensity / (4. * PI * r2));
@@ -143,7 +141,6 @@ vec3 getLight(Hit hit, Ray ray, in Scene scene)
                     shadowValue = 0.4;
         }
         
-        
         vec3 li = light.color * (light.intensity / (4. * PI));
         // lambert
         float lv = clamp(dot(ldir, hit.normal), 0., 1.);
@@ -158,7 +155,7 @@ vec3 getLight(Hit hit, Ray ray, in Scene scene)
         outputColor += (diffuse + specular * hit.material.specularIntensity) * shadowValue; 
     }
 
-    float fogInfluence = (clamp(((length(hit.point) - scene.fog.dist)/scene.fog.intensity) - 1., 0., scene.fog.dist) / scene.fog.dist );
+    float fogInfluence = (clamp(((length(ray.origin - hit.point) - scene.fog.dist)/scene.fog.intensity) - 1., 0., scene.fog.dist) / scene.fog.dist );
 
     return (outputColor + scene.ambientLight)*(1.-fogInfluence) + scene.fog.color * fogInfluence;
 }
@@ -205,7 +202,14 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
     // Marching Ray
     Hit hit = marchRay(ray, scene);
     
-    if (hit.isHit) color = getLight(hit, ray, scene);
+    if (hit.isHit){
+        color = getLight(hit, ray, scene);
+    }
+    else {
+        color = mix(vec3(0.4, 0.6, 0.8), vec3(0.7, 0.9, 1.), dot(rayDirection, vec3(0., 1., 0.)));
+        float sunDot = dot(scene.dirLights[0].direction, rayDirection);
+        color += sunDot * exp(exp(exp(-sunDot))) * scene.dirLights[0].color * -0.0000005;
+    }
     // else color = mix(vec3(0., 0.2, 0.5), vec3(0.4, 0.8, .9), uv.y);
     
     // Output to screen

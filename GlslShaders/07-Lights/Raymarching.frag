@@ -202,8 +202,14 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
     // Marching Ray
     Hit hit = marchRay(ray, scene);
     
-    if (hit.isHit) color = getLight(hit, ray, scene);
-    // else color = mix(vec3(0., 0.2, 0.5), vec3(0.4, 0.8, .9), uv.y);
+    if (hit.isHit){
+        color = getLight(hit, ray, scene);
+    }
+    else{
+        color = mix(vec3(0.4, 0.6, 0.8), vec3(0.7, 0.9, 1.), dot(rayDirection, vec3(0., 1., 0.)));
+        float sunDot = dot(scene.dirLights[0].direction, rayDirection);
+        color += sunDot * exp(exp(exp(-sunDot))) * scene.dirLights[0].color * -0.0000005;
+    }
     
     // Output to screen
     fragColor = vec4(color,1.0);

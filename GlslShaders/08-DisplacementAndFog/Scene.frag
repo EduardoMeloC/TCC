@@ -88,7 +88,7 @@ Scene createScene(){
     vec3 ambientLight = dirLights[0].color * 0.15 + groundMaterial.albedo * 0.3;
 
     Fog fog = Fog(
-        10.,
+        16.,
         1.,
         vec3(0.7, 0.9, 1.)
     );

@@ -1,6 +1,6 @@
 #define SHADOW_BIAS 1.e-3
-#define MAX_MARCHING_STEPS 100
-#define MAX_MARCHING_DISTANCE 100.
+#define MAX_MARCHING_STEPS 150
+#define MAX_MARCHING_DISTANCE 40.
 
 #define SURFACE_DISTANCE .001
 
@@ -201,16 +201,18 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
     
     // Marching Ray
     Hit hit = marchRay(ray, scene);
+
+    // Skybox Color
+    vec3 skyBoxColor = mix(vec3(0.4, 0.6, 0.8), vec3(0.7, 0.9, 1.), dot(rayDirection, vec3(0., 1., 0.)));
+    float sunDot = dot(scene.dirLights[0].direction * 1.224744871391589, rayDirection);
+    skyBoxColor += skyBoxColor * exp(exp(exp(-sunDot-0.2))) * scene.dirLights[0].color * 0.0000001;
     
     if (hit.isHit){
-        color = getLight(hit, ray, scene);
+        vec3 sceneColor = getLight(hit, ray, scene);
+        float fogInfluence = (clamp(((length(ray.origin - hit.point) - scene.fog.dist)/scene.fog.intensity) - 1., 0., scene.fog.dist) / scene.fog.dist );
+        color += mix(sceneColor, skyBoxColor, fogInfluence);
     }
-    else {
-        color = mix(vec3(0.4, 0.6, 0.8), vec3(0.7, 0.9, 1.), dot(rayDirection, vec3(0., 1., 0.)));
-        float sunDot = dot(scene.dirLights[0].direction, rayDirection);
-        color += sunDot * exp(exp(exp(-sunDot))) * scene.dirLights[0].color * -0.0000005;
-    }
-    // else color = mix(vec3(0., 0.2, 0.5), vec3(0.4, 0.8, .9), uv.y);
+    else color = skyBoxColor;
     
     // Output to screen
     fragColor = vec4(color,1.0);

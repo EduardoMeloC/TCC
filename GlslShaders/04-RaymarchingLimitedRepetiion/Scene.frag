@@ -125,7 +125,7 @@ Scene createScene(){
     Box[NBOXES+1] boxes = Box[](defaultBox);
 
     Light light = Light(
-        vec3(1. /*+ cos(iTime)*4.*/, 1., -5. + /*sin(iTime)**/4.), // position
+        vec3(1.,0.,0.), // position
         vec3(1.), // color
         70. // intensity
     );

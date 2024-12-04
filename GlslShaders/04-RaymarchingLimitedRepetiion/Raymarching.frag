@@ -24,7 +24,7 @@ left|right yaw
 
 HitCandidate getDist(vec3 point, Scene scene){
     HitCandidate minDist = NULL_CANDIDATE;
-
+    /*
     for(int i = 0; i < NSPHERES; i++){
         float dist = sphereDistance(point - scene.spheres[i].pos, scene.spheres[i]);
         
@@ -59,12 +59,14 @@ HitCandidate getDist(vec3 point, Scene scene){
             minDist.dist = dist;
             minDist.material = scene.boxes[i].material;
         }
-    }
+    }*/
     
-    float scale = 2.;
-    vec3 lim = vec3(3.,1.,1.);
+    float scale = 2.5;
+    vec3 lim = vec3(3.,3.,3.);
 
     vec3 q = opLimitedRepetition(point, scale, lim);
+    //vec3 q = opTwist(0.1,point);
+    //q = point;
 
     float arms = capsuleDistance(q - (scene.capsules[0].pos1 + scene.capsules[0].pos2)*0.5, scene.capsules[0]);
     float leg1 = capsuleDistance(q - (scene.capsules[1].pos1 + scene.capsules[1].pos2)*0.5, scene.capsules[1]);
@@ -74,12 +76,15 @@ HitCandidate getDist(vec3 point, Scene scene){
 
     //float dist2 = capsuleDistance(point - (scene.capsules[0].pos1 + scene.capsules[0].pos2)*0.5, scene.capsules[0]);
     //float dist3 = torusDistance(point - scene.toruses[0].pos, scene.toruses[0]);
-
+    
     float dist = opSmoothUnion(arms,body,0.1);
     dist = opSmoothUnion(dist,head,0.03);
     dist = opSmoothUnion(dist,leg1,0.03);
     dist = opSmoothUnion(dist,leg2,0.03);
-
+    //float intensity = 0.5;
+    //dist = opDisplace(dist,q,intensity);
+    //dist = opTwist(1.,q);
+    
 
 
     if(dist < minDist.dist){

@@ -29,10 +29,22 @@ struct HitCandidate{
     Material material;
 };
 
-struct Light{
+struct PointLight{
     vec3 pos;
     vec3 color;
     float intensity;
+};
+
+struct DirectionalLight{
+    vec3 direction;
+    vec3 color;
+    float intensity;
+};
+
+struct Fog{
+    float dist;
+    float intensity;
+    vec3 color;
 };
 
 struct Sphere{
@@ -102,24 +114,25 @@ float opSmoothSubtraction( float d1, float d2, float k ) {
     return mix( d2, -d1, h ) + k*h*(1.0-h);
 }
 
-vec3 opRepetition( in vec3 p, in float s) {
-    return p - s*round(p/s);
-}
-
-vec3 opLimitedRepetition( in vec3 p, in float s, in vec3 l) {
-    return p - s*clamp(round(p/s),-l,l);
-}
-
-float opDisplace( in float d1, in vec3 p, in float i ) {
-    float d2 = 0.5*sin(i*p.x)*sin(i*p.y)*sin(i*p.z);
-    return d1+d2;
-}
-
-vec3 opTwist( in float k, in vec3 p ) {
-    float c = cos(k*p.y);
-    float s = sin(k*p.y);
-    mat2  m = mat2(c,-s,s,c);
-    return vec3(m*p.xz,p.y);
+mat3 CameraRotation( vec2 m )
+{
+    // m.y = m.y;
+    
+    vec2 s = sin(m);
+    vec2 c = cos(m);
+    mat3 rotX = mat3(
+        1.0, 0.0, 0.0, 
+        0.0, c.y, s.y, 
+        0.0, -s.y, c.y
+    );
+    mat3 rotY = mat3(
+        -c.x, 0.0, -s.x, 
+        0.0, 1.0, 0.0, 
+        s.x, 0.0, -c.x
+    );
+    
+    
+    return rotY * rotX;
 }
 
 #endif

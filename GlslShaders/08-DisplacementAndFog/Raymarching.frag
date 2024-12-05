@@ -66,9 +66,11 @@ Hit marchRay(Ray ray, Scene scene){
         distToCamera += nextStepHit.dist;
         if(nextStepHit.dist < SURFACE_DISTANCE){
             isHit = true;
+            break;
         }
         if(distToCamera > MAX_MARCHING_DISTANCE){
             isHit = false;
+            break;
         }
     }
     Hit hit = Hit(
@@ -120,6 +122,7 @@ vec3 getLight(Hit hit, Ray ray, in Scene scene)
         if(shadowHit.material.type != M_UNLIT)
                 shadowValue = 0.4;
     }
+    // shadowValue = min(shadowValue, 8.*shadowHit.dist/, )
     
     vec3 li = light.color * (light.intensity / (4. * PI));
     // lambert

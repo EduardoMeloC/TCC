@@ -7,85 +7,57 @@
 #define NLIGHTS 3
 
 struct Scene{
+    Ground ground;
     Sphere[NSPHERES] spheres;
-    PointLight[NLIGHTS] lights;
-    DirectionalLight[1] dirLights;
+    DirectionalLight dirLight;
     vec3 ambientLight;
     Fog fog;
 };
 
 Scene createScene(){
-    const Material defaultMaterial = Material(
-        vec3(0.), // albedo
-        0., // specular power
-        0., // specular intensity
-        false // is lit
+    Material groundMaterial = createCheckerboardMaterial(
+        vec3(0.94, 0.91, 0.86) * 0.7, // albedo1
+        vec3(0.58, 0.66, 0.57) * 0.7, // albedo2
+        1., // specular power
+        0. // specular intensity
     );
 
-    Material groundMaterial = Material(
-        vec3(0.4), // albedo
-        150., // specular power
-        0., // specular intensity
-        true // is lit
-    );
-
-    Material sphereMaterial = Material(
+    Material sphereMaterial = createSolidMaterial(
         vec3(1.0, 0.0, 0.0), // albedo
         150., // specular power
-        0.5, // specular intensity
-        true // is lit
+        0.5 // specular intensity
     );
 
     Sphere[NSPHERES] spheres;
 
-    Sphere ground = Sphere(
-        vec3(2., -1001., -5.),
-        1000.,
+    Ground ground = Ground(
+        0.,
         groundMaterial
     );
-
-    spheres[0] = ground;
 
     for(int it=1; it < NSPHERES; it++){
         float i = float(it);
         float nspheres = float(NSPHERES);
         spheres[it] = Sphere(
-            vec3(6.*cos(i*PI/nspheres), .5, -5. -6.*sin(i*PI/nspheres)),
+            vec3(6.*cos(i*PI/nspheres), 1., -5. -6.*sin(i*PI/nspheres)),
             1.,
             sphereMaterial
         );
     }
 
-    PointLight[NLIGHTS] lights; 
-    
-    // lights[0] = PointLight(
-    //     vec3(-1., 2.15 + sin(iTime) * 2., -8.5), // position
-    //     vec3(1., 1., 0.), // color
-    //     150. // intensity
+    // spheres[0] = Sphere(
+    //     vec3(0., 1., 0.),
+    //     1.,
+    //     sphereMaterial
     // );
 
-    // lights[1] = PointLight(
-    //     vec3(0., 2.15 + sin(iTime) * 2., -8.5), // position
-    //     vec3(1.), // color
-    //     150. // intensity
-    // );
-
-    
-    // lights[2] = PointLight(
-    //     vec3(1., 2.15 + sin(iTime) * 2., -8.5), // position
-    //     vec3(0., 1., 1.), // color
-    //     150. // intensity
-    // );
-
-    DirectionalLight[1] dirLights;
-
-    dirLights[0] = DirectionalLight(
+    DirectionalLight dirLight = DirectionalLight(
         normalize(vec3(cos(iTime), -1., -sin(iTime))),
         vec3(0.788235294117647, 0.8862745098039215, 1.0),
         20.
     );
 
-    vec3 ambientLight = dirLights[0].color * 0.15 + groundMaterial.albedo * 0.3;
+    vec3 ambientLight = dirLight.color * 0.15 + groundMaterial.albedo * 0.3;
 
     Fog fog = Fog(
         16.,
@@ -93,7 +65,7 @@ Scene createScene(){
         vec3(0.7, 0.9, 1.)
     );
     
-    Scene scene = Scene(spheres, lights, dirLights, ambientLight, fog);
+    Scene scene = Scene(ground, spheres, dirLight, ambientLight, fog);
     return scene;
 }
 

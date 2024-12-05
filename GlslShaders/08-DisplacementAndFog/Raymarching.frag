@@ -4,8 +4,7 @@
 
 #define SURFACE_DISTANCE .001
 
-#define NULL_MATERIAL Material(vec3(0.),0.,0.,false)
-#define NULL_CANDIDATE HitCandidate(INF,NULL_MATERIAL);
+#define NULL_CANDIDATE HitCandidate(INF,NULL_MATERIAL)
 #define RAYHIT_INFINITY Hit(vec3(INF),vec3(0.),INF,NULL_MATERIAL,false)
 #define LIGHT_SPHERE Sphere(light.pos,0.1,Material(light.color,0.,0.,false))
 
@@ -33,15 +32,12 @@ HitCandidate getDist(vec3 point, Scene scene){
         }
     }
 
-    // render sphere in point light's location
-    // for(int i = 0; i < NLIGHTS; i++){
-    //     PointLight light = scene.lights[i];
-    //     float lightDist = sphereDistance(point - scene.lights[i].pos, LIGHT_SPHERE);
-    //     if(lightDist < minDist.dist){
-    //         minDist.dist = lightDist;
-    //         minDist.material = LIGHT_SPHERE.material;
-    //     }
-    // }
+    float groundDist = point.y - scene.ground.height;
+    if(groundDist < minDist.dist){
+        minDist.dist = groundDist;
+        minDist.material = scene.ground.material;
+    }
+
     return minDist;
 }
 
@@ -84,76 +80,59 @@ Hit marchRay(Ray ray, Scene scene){
     return hit;
 }
 
+vec3 getAlbedo(Hit hit){
+    switch(hit.material.type){
+        case M_SOLID:
+            return hit.material.albedo;
+            break;
+        case M_GRADIENT:
+            return hit.material.albedo; // TODO
+            break;
+        case M_CHECKERBOARD:
+            float Size = 2.0;
+            vec3 OffsetCoord = hit.point - vec3(Size / 2.0);
+            vec3 Pos = floor(OffsetCoord / Size);
+            float PatternMask = mod(Pos.x + mod(Pos.z, 2.0), 2.0);
+            vec3 albedo = PatternMask * hit.material.albedo + (1.-PatternMask) * hit.material.albedo2;
+            return albedo;
+            break;
+    }
+}
+
 vec3 getLight(Hit hit, Ray ray, in Scene scene)
 {
     // Unlit material
-    if (!hit.material.isLit)
+    if (hit.material.type == M_UNLIT)
         return hit.material.albedo;
     
     vec3 outputColor = vec3(0.);
-    for(int i=0; i < NLIGHTS; i++) {
-        PointLight light = scene.lights[i];
-        vec3 ldir = (light.pos - hit.point);
-        float r = length(ldir);
-        float r2 = r*r;
-        ldir = normalize(ldir);
-        
-        // cast hard shadow
-        float shadowValue = 1.;
-        vec3 shadowRayOrigin = hit.point + hit.normal * SHADOW_BIAS;
-        vec3 shadowRayDirection = ldir;
-        Ray shadowRay = Ray(shadowRayOrigin, shadowRayDirection);
-        Hit shadowHit = marchRay(shadowRay, scene);
-        if(shadowHit.isHit){
-            if(shadowHit.material.isLit)
-            if(length(shadowHit.point - shadowRayOrigin) < r){
+
+    DirectionalLight light = scene.dirLight;
+    vec3 ldir = -normalize(light.direction);
+
+    // cast hard shadow
+    float shadowValue = 1.;
+    vec3 shadowRayOrigin = hit.point + hit.normal * SHADOW_BIAS;
+    vec3 shadowRayDirection = ldir;
+    Ray shadowRay = Ray(shadowRayOrigin, shadowRayDirection);
+    Hit shadowHit = marchRay(shadowRay, scene);
+    if(shadowHit.isHit){
+        if(shadowHit.material.type != M_UNLIT)
                 shadowValue = 0.4;
-            }
-        }
-        
-        // inv square law
-        vec3 li = light.color * (light.intensity / (4. * PI * r2));
-        // lambert
-        float lv = clamp(dot(ldir, hit.normal), 0., 1.);
-        
-        // specular (Phong)
-        vec3 R = reflect(ldir, hit.normal);
-        vec3 specular = li * pow(max(0.f, dot(R, ray.direction)), hit.material.specularPower);
-        
-        vec3 albedo = hit.material.albedo;
-        vec3 diffuse = albedo * li * lv;
-        
-        outputColor += (diffuse + specular * hit.material.specularIntensity) * shadowValue; 
     }
+    
+    vec3 li = light.color * (light.intensity / (4. * PI));
+    // lambert
+    float lv = clamp(dot(ldir, hit.normal), 0., 1.);
+    
+    // specular (Phong)
+    vec3 R = reflect(ldir, hit.normal);
+    vec3 specular = li * pow(max(0.f, dot(R, ray.direction)), hit.material.specularPower);
+    
+    vec3 albedo = getAlbedo(hit);
+    vec3 diffuse = albedo * li * lv;
 
-    for(int i=0; i < 1; i++) {
-        DirectionalLight light = scene.dirLights[i];
-        vec3 ldir = -normalize(light.direction);
-
-        // cast hard shadow
-        float shadowValue = 1.;
-        vec3 shadowRayOrigin = hit.point + hit.normal * SHADOW_BIAS;
-        vec3 shadowRayDirection = ldir;
-        Ray shadowRay = Ray(shadowRayOrigin, shadowRayDirection);
-        Hit shadowHit = marchRay(shadowRay, scene);
-        if(shadowHit.isHit){
-            if(shadowHit.material.isLit)
-                    shadowValue = 0.4;
-        }
-        
-        vec3 li = light.color * (light.intensity / (4. * PI));
-        // lambert
-        float lv = clamp(dot(ldir, hit.normal), 0., 1.);
-        
-        // specular (Phong)
-        vec3 R = reflect(ldir, hit.normal);
-        vec3 specular = li * pow(max(0.f, dot(R, ray.direction)), hit.material.specularPower);
-        
-        vec3 albedo = hit.material.albedo;
-        vec3 diffuse = albedo * li * lv;
-
-        outputColor += (diffuse + specular * hit.material.specularIntensity) * shadowValue; 
-    }
+    outputColor += (diffuse + specular * hit.material.specularIntensity) * shadowValue; 
 
     float fogInfluence = (clamp(((length(ray.origin - hit.point) - scene.fog.dist)/scene.fog.intensity) - 1., 0., scene.fog.dist) / scene.fog.dist );
 
@@ -204,8 +183,8 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
 
     // Skybox Color
     vec3 skyBoxColor = mix(vec3(0.4, 0.6, 0.8), vec3(0.7, 0.9, 1.), dot(rayDirection, vec3(0., 1., 0.)));
-    float sunDot = dot(scene.dirLights[0].direction * 1.224744871391589, rayDirection);
-    skyBoxColor += skyBoxColor * exp(exp(exp(-sunDot-0.2))) * scene.dirLights[0].color * 0.0000001;
+    float sunDot = dot(scene.dirLight.direction * 1.224744871391589, rayDirection);
+    skyBoxColor += skyBoxColor * exp(exp(exp(-sunDot-0.2))) * scene.dirLight.color * 0.0000001;
     
     if (hit.isHit){
         vec3 sceneColor = getLight(hit, ray, scene);

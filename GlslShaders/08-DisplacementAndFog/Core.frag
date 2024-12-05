@@ -4,17 +4,42 @@
 #define INF 3.402823466e+38
 #define PI  3.1415926535898
 
+
 struct Ray{
     vec3 origin;
     vec3 direction;
 };
 
 struct Material{
+    int type; // -1 - null ; 0 - unlit 1 - solid; 2 - gradient ; 3 - checkerboard
     vec3 albedo;
     float specularPower;
     float specularIntensity;
-    bool isLit;
+    vec3 albedo2;
 };
+
+#define M_UNLIT 0
+#define M_SOLID 1
+#define M_GRADIENT 2
+#define M_CHECKERBOARD 3
+
+#define NULL_MATERIAL Material(-1, vec3(0.),0.,0., vec3(0.))
+
+Material createUnlitMaterial(vec3 albedo, float specularPower, float specularIntensity){
+    return Material(M_UNLIT, albedo, specularPower, specularIntensity, vec3(0.));
+}
+
+Material createSolidMaterial(vec3 albedo, float specularPower, float specularIntensity){
+    return Material(M_SOLID, albedo, specularPower, specularIntensity, vec3(0.));
+}
+
+Material createGradientMaterial(vec3 albedo1, vec3 albedo2, float specularPower, float specularIntensity){
+    return Material(M_GRADIENT, albedo1, specularPower, specularIntensity, albedo2);
+}
+
+Material createCheckerboardMaterial(vec3 albedo1, vec3 albedo2, float specularPower, float specularIntensity){
+    return Material(M_CHECKERBOARD, albedo1, specularPower, specularIntensity, albedo2);
+}
 
 struct Hit{
     vec3 point;
@@ -70,6 +95,11 @@ struct Torus{
 struct Box{
     vec3 pos;
     vec3 size;
+    Material material;
+};
+
+struct Ground{
+    float height;
     Material material;
 };
 

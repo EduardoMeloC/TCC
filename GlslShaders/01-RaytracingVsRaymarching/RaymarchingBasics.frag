@@ -1,8 +1,8 @@
 #define SHADOW_BIAS 1.e-4
-#define MAX_MARCHING_STEPS 100
-#define MAX_MARCHING_DISTANCE 100.
+#define MAX_MARCHING_STEPS 150
+#define MAX_MARCHING_DISTANCE 40.
 
-#define SURFACE_DISTANCE .001
+#define SURFACE_DISTANCE .0001
 
 #define INF 3.402823466e+38
 #define PI  3.1415926535898
@@ -146,9 +146,11 @@ Hit marchRay(Ray ray, Scene scene){
         distToCamera += nextStepHit.dist;
         if(nextStepHit.dist < SURFACE_DISTANCE){
             isHit = true;
+            break;
         }
         if(distToCamera > MAX_MARCHING_DISTANCE){
             isHit = false;
+            break;
         }
     }
     // generate Hit

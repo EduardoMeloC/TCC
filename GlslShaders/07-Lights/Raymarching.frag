@@ -70,9 +70,11 @@ Hit marchRay(Ray ray, Scene scene){
         distToCamera += nextStepHit.dist;
         if(nextStepHit.dist < SURFACE_DISTANCE){
             isHit = true;
+            break;
         }
         if(distToCamera > MAX_MARCHING_DISTANCE){
             isHit = false;
+            break;
         }
     }
     Hit hit = Hit(

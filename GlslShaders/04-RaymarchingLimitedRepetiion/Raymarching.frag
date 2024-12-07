@@ -61,12 +61,12 @@ HitCandidate getDist(vec3 point, Scene scene){
         }
     }*/
     
-    float scale = 2.5;
-    vec3 lim = vec3(3.,3.,3.);
+    float scale = 2.;
+    vec3 lim = vec3(3.,1.,1.);
 
     vec3 q = opLimitedRepetition(point, scale, lim);
     //vec3 q = opTwist(0.1,point);
-    //q = point;
+    //vec3 q = point;
 
     float arms = capsuleDistance(q - (scene.capsules[0].pos1 + scene.capsules[0].pos2)*0.5, scene.capsules[0]);
     float leg1 = capsuleDistance(q - (scene.capsules[1].pos1 + scene.capsules[1].pos2)*0.5, scene.capsules[1]);

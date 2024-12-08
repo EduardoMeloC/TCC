@@ -1,5 +1,5 @@
 #define SHADOW_BIAS 1.e-3
-#define MAX_MARCHING_STEPS 150
+#define MAX_MARCHING_STEPS 250
 #define MAX_MARCHING_DISTANCE 40.
 
 #define SURFACE_DISTANCE .001
@@ -38,9 +38,14 @@ HitCandidate getDist(vec3 point, Scene scene){
         minDist.material = scene.ground.material;
     }
 
-    float sphereDist = sphereDistance(point - vec3(0., 5., -10.), Sphere(vec3(0.), 5., NULL_MATERIAL));
-    float torusDist = torusDistance(point - vec3(0., 5., -10.), Torus(vec3(0.), 5., 1., NULL_MATERIAL));
-    float specialShapeDist = mix(sphereDist, torusDist, sin(iTime)*0.5+0.5);
+    point -= vec3(0., 5., -10.);
+    point *= rotate_x(1.5 * PI);
+    point *= rotate_z(PI*0.5);
+
+    float sphereDist = sphereDistance(point, Sphere(vec3(0.), 5., NULL_MATERIAL));
+    float bunnyDist = stanfordBunnyDistance((point)*.15);
+    //float torusDist = torusDistance(point - vec3(0., 5., -10.), Torus(vec3(0.), 5., 1., NULL_MATERIAL));
+    float specialShapeDist = mix(sphereDist, bunnyDist, smoothstep(0., 1., sin((iTime*0.5 - floor(iTime*0.5))*PI)));
     if(specialShapeDist < minDist.dist){
         minDist.dist = specialShapeDist;
         minDist.material = createSolidMaterial(

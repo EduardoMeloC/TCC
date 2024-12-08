@@ -23,13 +23,13 @@ const ivec2 VMOUSE = ivec2(1, 1);
 HitCandidate getDist(vec3 point, Scene scene){
     HitCandidate minDist = NULL_CANDIDATE;
 
-    float noise = layeredSimplexNoise(vec2(point.x, point.z)) * 0.5;
+    float noise = layeredSimplexNoise(vec2(point.x * 0.75, point.z * 0.75)) * 0.25;
 
     float groundDist = point.y - scene.ground.height - noise;
 
     if(groundDist < minDist.dist){
         minDist.dist = groundDist;
-        minDist.material = scene.ground.material;
+        minDist.material = createSolidMaterial(vec3(1.), 0., 0.);
     }
 
     return minDist;
@@ -108,14 +108,14 @@ vec3 getLight(Hit hit, Ray ray, in Scene scene)
 
     // cast hard shadow
     float shadowValue = 1.;
-    vec3 shadowRayOrigin = hit.point + hit.normal * SHADOW_BIAS;
-    vec3 shadowRayDirection = ldir;
-    Ray shadowRay = Ray(shadowRayOrigin, shadowRayDirection);
-    Hit shadowHit = marchRay(shadowRay, scene);
-    if(shadowHit.isHit){
-        if(shadowHit.material.type != M_UNLIT)
-                shadowValue = 0.4;
-    }
+    // vec3 shadowRayOrigin = hit.point + hit.normal * SHADOW_BIAS;
+    // vec3 shadowRayDirection = ldir;
+    // Ray shadowRay = Ray(shadowRayOrigin, shadowRayDirection);
+    // Hit shadowHit = marchRay(shadowRay, scene);
+    // if(shadowHit.isHit){
+    //     if(shadowHit.material.type != M_UNLIT)
+    //             shadowValue = 0.4;
+    // }
     // shadowValue = min(shadowValue, 8.*shadowHit.dist/, )
     
     vec3 li = light.color * (light.intensity / (4. * PI));

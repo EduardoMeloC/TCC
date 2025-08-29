@@ -1,77 +1,49 @@
-#define SHADOW_BIAS 1.e-3
-#define MAX_MARCHING_STEPS 150
-#define MAX_MARCHING_DISTANCE 80.
-
-#define SURFACE_DISTANCE .001
-
-#define NULL_CANDIDATE HitCandidate(INF,NULL_MATERIAL)
-#define RAYHIT_INFINITY Hit(vec3(INF),vec3(0.),INF,NULL_MATERIAL,false)
-#define LIGHT_SPHERE Sphere(light.pos,0.1,Material(light.color,0.,0.,false))
-
 #include "Core.frag"
-#include "Scene.frag"
 
 #iChannel0 "CameraBuffer.frag"
+#iChannel1 "file://noise2.png"
 
 const ivec2 POSITION = ivec2(1, 0);
 const ivec2 VMOUSE = ivec2(1, 1);
 
-#define load(P) texelFetch(iChannel0, ivec2(P), 0)
+#define NLIGHTS 1
+#define RENDER_LIGHT_SPHERE
 
-#iKeyboard
+#define SPHERE_MATERIAL createSolidMaterial(vec3(1.0, 0.0, 0.0), 130., 0.7)
+#define BOX_MATERIAL createSolidMaterial(vec3(1.0, 0.0, 0.0), 10., 0.3)
 
-float getDist(vec3 point, Scene scene){
-    float minDist=INF;
+struct Scene{
+    DirectionalLight dirLight;
+    PointLight[NLIGHTS] pointLights;
+    vec3 ambientLight;
+    Fog fog;
+};
 
-    //float noise = layeredSimplexNoise(vec2(point.x * 0.75, point.z * 0.75)) * 0.25;
-    // point -= vec3(0., 5., -10.);
-    // point *= rotate_x(1.5 * PI);
-    // point *= rotate_z(PI*0.5);
-    // float bunnyDist = stanfordBunnyDistance((point)*.15);
-    
-    float sphereDist = sphereDistance(point - vec3(0., 5., -10.), Sphere(vec3(0.), 1.75, NULL_MATERIAL));
-    
-    if(sphereDist < minDist){
-       minDist = sphereDist;
-    }
-    float noise = fbm(point);
-
-    return -minDist+noise;
-}
-
-vec3 getNormal(vec3 point,float d, Scene scene){
-    vec2 e = vec2(.01, 0);
-    float n1 = getDist(point - e.xyy, scene);
-    float n2 = getDist(point - e.yxy, scene);
-    float n3 = getDist(point - e.yyx, scene);
-    
-    vec3 stretchedNormal = d-vec3(
-        n1,
-        n2,
-        n3
+Scene createScene(){
+    DirectionalLight dirLight = DirectionalLight(
+        // normalize(vec3(cos(iTime), -1., -sin(iTime))),
+        normalize(vec3(-2., -3., -5.)),
+        vec3(0.788235294117647, 0.8862745098039215, 1.0),
+        20.
     );
-    return normalize(stretchedNormal);
-}
+    
+    PointLight[NLIGHTS] pointLights; 
+    pointLights[0] = PointLight(
+        vec3(2., 2., 2.),
+        vec3(0.988235294117647, 0.9862745098039215, 0.9),
+        14.
+    );
 
-vec3 marchRay(Ray ray, Scene scene){
-    float distToCamera = 0.;
-    bool isHit = false;
-    vec3 marchPos = ray.origin;
-    float marchSize = 0.08;
-    float density = 0.;
-    vec4 res = vec4(0.);
+    vec3 ambientLight = dirLight.color * 0.05;
 
-    for(int stp=0; stp<MAX_MARCHING_STEPS; stp++){
-        marchPos = ray.origin + (distToCamera * ray.direction);
-        density = getDist(marchPos, scene);
-        distToCamera += marchSize;
-        if(density > 0.){
-            vec4 color = vec4(mix(vec3(1.0,1.0,1.0), vec3(0.0, 0.0, 0.0), density), density );
-            color.rgb *= color.a;
-            res += color * (1.0 - res.a);
-        }
-    }
-    return res.xyz;
+    Fog fog = Fog(
+        10., // dist
+        0.02, // intensity
+        vec3(0.) // color
+    );
+    
+    Scene scene = Scene(dirLight, pointLights, ambientLight, fog);
+    return scene;
 }
 
 vec3 getAlbedo(Hit hit){
@@ -93,58 +65,103 @@ vec3 getAlbedo(Hit hit){
     }
 }
 
-vec3 getLight(Hit hit, Ray ray, in Scene scene)
+
+vec4 getLight(Hit hit, Ray ray, in Scene scene)
 {
-    // Unlit material
     if (hit.material.type == M_UNLIT)
-        return hit.material.albedo;
+        return vec4(hit.material.albedo, hit.material.transparency);
+        
+    if (hit.material.type == M_CLOUD)
+        return vec4(hit.material.albedo, hit.material.transparency);
     
     vec3 outputColor = vec3(0.);
-
-    DirectionalLight light = scene.dirLight;
-    vec3 ldir = -normalize(light.direction);
-
-    // cast hard shadow
-    float shadowValue = 1.;
-    // vec3 shadowRayOrigin = hit.point + hit.normal * SHADOW_BIAS;
-    // vec3 shadowRayDirection = ldir;
-    // Ray shadowRay = Ray(shadowRayOrigin, shadowRayDirection);
-    // Hit shadowHit = marchRay(shadowRay, scene);
-    // if(shadowHit.isHit){
-    //     if(shadowHit.material.type != M_UNLIT)
-    //             shadowValue = 0.4;
-    // }
-    // shadowValue = min(shadowValue, 8.*shadowHit.dist/, )
     
-    vec3 li = light.color * (light.intensity / (4. * PI));
-    // lambert
-    float lv = clamp(dot(ldir, hit.normal), 0., 1.);
+    for(int i=0; i < NLIGHTS; i++) {
+        PointLight light = scene.pointLights[i];
+        vec3 ldir = (light.pos - hit.point);
+        float r = length(ldir);
+        float r2 = r*r;
+        ldir = normalize(ldir);
+
+        // cast hard shadow
+        float shadowValue = 1.;
+
+        vec3 li = light.color * (light.intensity / (4. * PI));
+        // lambert
+        float lv = clamp(dot(ldir, hit.normal), 0., 1.);
+
+        // specular (Phong)
+        vec3 R = reflect(ldir, hit.normal);
+        vec3 specular = li * pow(max(0.f, dot(R, ray.direction)), hit.material.specularPower);
+
+        vec3 albedo = getAlbedo(hit);
+        vec3 diffuse = albedo * li * lv;
+
+        outputColor += (diffuse + specular * hit.material.specularIntensity) * shadowValue;
+    }
     
-    // specular (Phong)
-    vec3 R = reflect(ldir, hit.normal);
-    vec3 specular = li * pow(max(0.f, dot(R, ray.direction)), hit.material.specularPower);
-    
-    vec3 albedo = getAlbedo(hit);
-    vec3 diffuse = albedo * li * lv;
-
-    outputColor += (diffuse + specular * hit.material.specularIntensity) * shadowValue; 
-
-    float fogInfluence = (clamp(((length(ray.origin - hit.point) - scene.fog.dist)/scene.fog.intensity) - 1., 0., scene.fog.dist) / scene.fog.dist );
-
-    return (outputColor + scene.ambientLight)*(1.-fogInfluence) + scene.fog.color * fogInfluence;
+    return vec4(outputColor, hit.material.transparency);
 }
 
-mat4 lookAt(vec3 eye, vec3 center, vec3 up) {
-    // Based on gluLookAt man page
-    vec3 f = normalize(center - eye);
-    vec3 s = normalize(cross(f, up));
-    vec3 u = cross(s, f);
-    return mat4(
-        vec4(s, 0.0),
-        vec4(u, 0.0),
-        vec4(-f, 0.0),
-        vec4(0.0, 0.0, 0.0, 1.)
+float getDist(vec3 point, Scene scene){
+    vec3 sphereCenter = vec3(0., 2., -5.);
+    float sphereRadius = 2.;
+    
+    float cloudBoundDist = length(point - sphereCenter) - sphereRadius;
+    float noise = fbm(point);
+    
+    return -cloudBoundDist+noise;
+}
+
+vec3 getNormal(vec3 point,float d, Scene scene){
+    vec2 e = vec2(.01, 0);
+    float n1 = getDist(point - e.xyy, scene);
+    float n2 = getDist(point - e.yxy, scene);
+    float n3 = getDist(point - e.yyx, scene);
+    
+    vec3 stretchedNormal = d-vec3(
+        n1,
+        n2,
+        n3
     );
+    return normalize(stretchedNormal);
+}
+
+Hit fixedStepRaymarch(Ray ray, Scene scene){
+    float distToCamera = 0.;
+    bool isHit = false;
+    vec3 marchPos = ray.origin;
+    vec4 res = vec4(0.);
+
+    for(int stp=0; stp<FIXED_MAX_MARCHING_STEPS; stp++){
+        marchPos = ray.origin + (distToCamera * ray.direction); 
+        float density = getDist(marchPos, scene);
+        distToCamera += FIXED_STEP_SIZE;
+        
+        
+        if(density > 0.){
+            isHit = true;
+            vec4 color = vec4(mix(vec3(1.0), vec3(0.3, 0.55, 0.8), density), density);
+            color.rgb *= color.a;
+            res += color * (1.0-res.a);
+            
+            // early exit if opaque
+            if(res.a > 1.) break;
+        }
+    }
+    
+    Material cloudMaterial = createCloudMaterial();
+    cloudMaterial.albedo = res.xyz;
+    cloudMaterial.transparency = res.a;
+    
+    Hit hit = Hit(
+        marchPos, 
+        vec3(0.), // uncalculated normal
+        distToCamera,
+        cloudMaterial,
+        isHit
+     ); 
+    return hit;
 }
 
 void Camera(in vec2 fragCoord, out vec3 ro, out vec3 rd) 
@@ -172,11 +189,28 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
 
 
     Ray ray = Ray(rayOrigin, rayDirection);
+    
+    // Marching Ray
+    Hit hit = fixedStepRaymarch(ray, scene);
 
+    // Skybox Color
+    vec3 skyBoxColor = mix(vec3(0.4, 0.6, 0.8), vec3(0.7, 0.9, 1.), dot(rayDirection, vec3(0., 1., 0.)));
+    float sunDot = dot(scene.dirLight.direction * 1.224744871391589, rayDirection);
+    skyBoxColor += skyBoxColor * exp(exp(exp(-sunDot-0.2))) * scene.dirLight.color * 0.0000001;
+    //vec3 skyBoxColor = vec3(0.);
+    
+    
+    if (hit.isHit){
+        vec4 sceneColor = getLight(hit, ray, scene);
+        vec3 sceneRgb = sceneColor.rgb + skyBoxColor * (1.-sceneColor.a); // renders skybox after hitting transparent object
+        float dist = length(ray.origin - hit.point);        
+        float fogDistance = max(0.0, dist - scene.fog.startDistance);
+        float fogAmount = 1.0 - exp(-fogDistance * scene.fog.intensity);
+        color += mix(sceneRgb, skyBoxColor, fogAmount);
+    }
+    else color = skyBoxColor;
+    
     
     // Output to screen
-
-    color = marchRay(ray, scene);
-
     fragColor = vec4(color,1.0);
 }

@@ -8,8 +8,8 @@
 #define MAX_MARCHING_STEPS 250
 #define MAX_MARCHING_DISTANCE 80.
 
-#define CLOUD_STEP_SIZE 0.08
-#define CLOUD_MAX_MARCHING_STEPS 80
+#define FIXED_STEP_SIZE 0.08
+#define FIXED_MAX_MARCHING_STEPS 120
 
 #define SURFACE_DISTANCE .001
 
@@ -24,13 +24,6 @@ struct Ray{
     vec3 direction;
 };
 
-#define NULL_MATERIAL Material(-1, vec3(0.),0.,0., vec3(0.), 1.)
-#define M_UNLIT 0
-#define M_SOLID 1
-#define M_GRADIENT 2
-#define M_CHECKERBOARD 3
-#define M_CLOUD 4
-
 struct Material{
     int type; // -1 - null ; 0 - unlit 1 - solid; 2 - gradient ; 3 - checkerboard ; 4 - cloud
     vec3 albedo;
@@ -39,6 +32,14 @@ struct Material{
     vec3 albedo2;
     float transparency;
 };
+
+#define M_UNLIT 0
+#define M_SOLID 1
+#define M_GRADIENT 2
+#define M_CHECKERBOARD 3
+#define M_CLOUD 4
+
+#define NULL_MATERIAL Material(-1, vec3(0.),0.,0., vec3(0.), 1.)
 
 Material createUnlitMaterial(vec3 albedo){
     return Material(M_UNLIT, albedo, 0., 0., vec3(0.), 1.);
@@ -160,6 +161,10 @@ float boxDistance(vec3 point, Box box){
     vec3 q = abs(p) - box.size;
     return length(max(q,0.)) + min(max(q.x,max(q.y,q.z)),0.);
 }
+
+mat3 rotate_x(float a){float sa = sin(a); float ca = cos(a); return mat3(vec3(1.,.0,.0),    vec3(.0,ca,sa),   vec3(.0,-sa,ca));}
+mat3 rotate_y(float a){float sa = sin(a); float ca = cos(a); return mat3(vec3(ca,.0,sa),    vec3(.0,1.,.0),   vec3(-sa,.0,ca));}
+mat3 rotate_z(float a){float sa = sin(a); float ca = cos(a); return mat3(vec3(ca,sa,.0),    vec3(-sa,ca,.0),  vec3(.0,.0,1.));}
 
 float opSmoothUnion( float d1, float d2, float k ) {
     float h = clamp( 0.5 + 0.5*(d2-d1)/k, 0.0, 1.0 );

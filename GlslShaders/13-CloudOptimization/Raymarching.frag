@@ -6,8 +6,6 @@
 const ivec2 POSITION = ivec2(1, 0);
 const ivec2 VMOUSE = ivec2(1, 1);
 
-#define CLOUD_LIGHTS_ENABLED
-
 #define NLIGHTS 1
 #define RENDER_LIGHT_SPHERE
 
@@ -111,21 +109,16 @@ vec4 getLight(Hit hit, Ray ray, in Scene scene)
 
         outputColor += (diffuse + specular * hit.material.specularIntensity) * shadowValue;
     }
-    /*
-    float dist = length(ray.origin - hit.point);        
-    float fogDistance = max(0.0, dist - scene.fog.startDistance);
-    float fogAmount = 1.0 - exp(-fogDistance * scene.fog.intensity);
-   
-    vec3 foggedColor = (outputColor + scene.ambientLight)*(1.-fogAmount) + (scene.fog.color * fogAmount);*/
     return vec4(outputColor, hit.material.transparency);
 }
 
 HitCandidate getDist(vec3 point, Scene scene){
     HitCandidate cloudBound = NULL_CANDIDATE;
 
-    vec3 sphereCenter = vec3(0., 2., -5.);
+    vec3 cloudBoundCenter = vec3(0., 2., -5.);
+    float cloudBoundRadius = 4.0;
     
-    float cloudBoundDist = sphereDistance(point - sphereCenter, Sphere(vec3(0.), 2., NULL_MATERIAL));
+    float cloudBoundDist = length(point - cloudBoundCenter) - cloudBoundRadius;
     
     cloudBound.material = createCloudMaterial();
     cloudBound.dist = cloudBoundDist;
@@ -134,16 +127,13 @@ HitCandidate getDist(vec3 point, Scene scene){
 }
 
 float getDensity(vec3 point, Scene scene){
-    // procedural FBM noise field
-    float noise = fbm(point); // scale controls cloud detail
+    float noise = fbm(point);
 
-    // shape density falloff using a sphere (so clouds fade at edges)
     vec3 cloudCenter = vec3(0., 2., -5.);
-    float r = length(point - cloudCenter);
-    float falloff = smoothstep(2.0, 0., r); // inside sphere → 1, edge → 0
+    float cloudRadius = 2.0;
+    float cloudDist = length(point - cloudCenter) - cloudRadius;
 
-    // final density
-    return clamp(noise * falloff, 0.0, 1.0);
+    return -cloudDist+noise;
 }
 
 vec3 getNormal(vec3 point,float d, Scene scene){
@@ -160,47 +150,6 @@ vec3 getNormal(vec3 point,float d, Scene scene){
     return normalize(stretchedNormal);
 }
 
-Hit cloudMarchRay(Ray ray, Scene scene){
-    float distToCamera = 0.;
-    bool isHit = false;
-    vec3 marchPos = ray.origin;
-    float density = 0.;
-    vec4 res = vec4(0.);
-
-    for(int stp=0; stp<CLOUD_MAX_MARCHING_STEPS; stp++){
-        marchPos = ray.origin + (distToCamera * ray.direction);
-        HitCandidate nextHit = getDist(marchPos, scene);
-        float density = -nextHit.dist;
-        distToCamera += CLOUD_STEP_SIZE;
-        
-        
-        if(density > 0.){
-            vec4 color = vec4(mix(vec3(1.0,1.0,1.0), vec3(0.0, 0.0, 0.0), density), density );
-            color.rgb *= color.a;
-            #ifdef CLOUD_LIGHTS_ENABLED
-            vec3 lightDir = scene.pointLights[0].pos - marchPos;
-            float diffuse = clamp((getDist(marchPos, scene).dist - getDist(marchPos + 0.3 * lightDir, scene).dist) / 0.3, 0.0, 1.0 );
-            vec3 ambientLight = scene.dirLight.color * 0.05;
-            vec3 lightColor = ambientLight + 0.8 * scene.pointLights[0].color * diffuse;
-            color.rgb *= lightColor;
-            #endif
-            res += color * (1.0 - res.a);
-        }
-    }
-    
-    Material cloudMaterial = createCloudMaterial();
-    cloudMaterial.albedo = res.xyz;
-    
-    Hit hit = Hit(
-        vec3(0.), 
-        vec3(0.), // uncalculated normal
-        distToCamera,
-        cloudMaterial,
-        isHit
-     ); 
-    return hit;
-}
-
 Hit marchRay(Ray ray, Scene scene){
     float distToCamera = 0.;
     bool isHit = false;
@@ -210,19 +159,20 @@ Hit marchRay(Ray ray, Scene scene){
         marchPos = ray.origin + (distToCamera * ray.direction);
         nextStepHit = getDist(marchPos, scene);
         #ifdef RENDER_LIGHT_SPHERE
-        // render sphere in point light's location
-        HitCandidate lightHit = NULL_CANDIDATE;
-        for(int i = 0; i < NLIGHTS; i++){
-            PointLight light = scene.pointLights[i];
-            float lightDist = sphereDistance(marchPos - scene.pointLights[i].pos, LIGHT_SPHERE);
-            if(lightDist < lightHit.dist){
-                lightHit.dist = lightDist;
-                lightHit.material = LIGHT_SPHERE.material;
+            // render sphere in point light's location
+            HitCandidate lightHit = NULL_CANDIDATE;
+            for(int i = 0; i < NLIGHTS; i++){
+                PointLight light = scene.pointLights[i];
+                float lightDist = sphereDistance(marchPos - scene.pointLights[i].pos, LIGHT_SPHERE);
+                if(lightDist < lightHit.dist){
+                    lightHit.dist = lightDist;
+                    lightHit.material = LIGHT_SPHERE.material;
+                }
             }
-        }
-        if(lightHit.dist < nextStepHit.dist) nextStepHit = lightHit;
+            if(lightHit.dist < nextStepHit.dist) nextStepHit = lightHit;
         #endif
         distToCamera += nextStepHit.dist;
+
         // hit a surface -> return immediately
         if(nextStepHit.dist < SURFACE_DISTANCE && nextStepHit.material.type != M_CLOUD){
             isHit = true;
@@ -234,6 +184,7 @@ Hit marchRay(Ray ray, Scene scene){
                 isHit
             );
         }
+
         // if it's a cloud volume -> break and switch to volumetric march
         if(nextStepHit.dist < SURFACE_DISTANCE && nextStepHit.material.type == M_CLOUD){
             break;
@@ -252,40 +203,25 @@ Hit marchRay(Ray ray, Scene scene){
         }
     }
     // ----------- VOLUMETRIC CLOUD MARCHING -----------
-    vec4 res = vec4(0.0); // accumulated color + alpha
+    vec4 res = vec4(0.0);
 
     // Entry point is current marchPos
-    for(int stp=0; stp<CLOUD_MAX_MARCHING_STEPS; stp++){
+    for(int stp=0; stp<FIXED_MAX_MARCHING_STEPS; stp++){
         marchPos = ray.origin + (distToCamera * ray.direction);
 
-        float density = getDensity(marchPos, scene); // << density, not distance
-        distToCamera += CLOUD_STEP_SIZE;
+        float density = getDensity(marchPos, scene);
+        distToCamera += FIXED_STEP_SIZE;
 
         if(density > 0.0){
-            // map density to color/opacity
-            vec4 color = vec4(
-                mix(vec3(1.0), vec3(0.), density), // simple white→black mix
-                density
-            );
-
-            // pre-multiply alpha
+            vec4 color = vec4(mix(vec3(1.0), vec3(0.3, 0.55, 0.8), density), density);
             color.rgb *= color.a;
-
-            #ifdef CLOUD_LIGHTS_ENABLED
-            vec3 lightDir = normalize(scene.pointLights[0].pos - marchPos);
-            vec3 ambientLight = scene.dirLight.color * 0.05;
-            vec3 lightColor = ambientLight + scene.pointLights[0].color;
-            color.rgb *= lightColor;
-            #endif
-
-            // front-to-back compositing
-            res += color * (1.0 - res.a);
-
+            res += color * (1.0-res.a);
+            
             // early exit if opaque
-            if(res.a > 0.95) break;
-        }
-        }
-        // create material for cloud
+            if(res.a > 1.) break;
+       }
+    }
+
     Material cloudMaterial = createCloudMaterial();
     cloudMaterial.albedo = res.rgb;
     cloudMaterial.transparency = res.a;
@@ -298,53 +234,6 @@ Hit marchRay(Ray ray, Scene scene){
         res.a > 0.0 // "isHit" if any density was accumulated
     );
 }
-    /*if(nextStepHit.material.type == M_CLOUD){
-    float density = 0.;
-    vec4 res = vec4(0.);
-    
-    for(int stp=0; stp<CLOUD_MAX_MARCHING_STEPS; stp++){
-        marchPos = ray.origin + (distToCamera * ray.direction);
-        nextStepHit = getDist(marchPos, scene);
-        float density = nextStepHit.dist;
-        distToCamera += CLOUD_STEP_SIZE;
-        
-        
-        if(density > 0.){
-            vec4 color = vec4(mix(vec3(1.0,1.0,1.0), vec3(0.0, 0.0, 0.0), density), density );
-            color.rgb *= color.a;
-            #ifdef CLOUD_LIGHTS_ENABLED
-            vec3 lightDir = scene.pointLights[0].pos - marchPos;
-            float diffuse = clamp((getDist(marchPos, scene).dist - getDist(marchPos + 0.3 * lightDir, scene).dist) / 0.3, 0.0, 1.0 );
-            vec3 ambientLight = scene.dirLight.color * 0.05;
-            vec3 lightColor = ambientLight + 0.8 * scene.pointLights[0].color * diffuse;
-            color.rgb *= lightColor;
-            #endif
-            res += color * (1.0 - res.a);
-        }
-    }
-    
-    Material cloudMaterial = createCloudMaterial();
-    cloudMaterial.albedo = res.xyz;
-    
-    Hit hit = Hit(
-        vec3(0.), 
-        vec3(0.), // uncalculated normal
-        distToCamera,
-        cloudMaterial,
-        isHit
-     ); 
-    return hit;
-    
-    
-    }
-    Hit hit = Hit(
-            marchPos,
-            getNormal(marchPos,nextStepHit.dist, scene),
-            distToCamera,
-            nextStepHit.material,
-            isHit); 
-        return hit;
-}*/
 
 void Camera(in vec2 fragCoord, out vec3 ro, out vec3 rd) 
 {
@@ -369,7 +258,6 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
     vec3 rayDirection = vec3(0.);
     Camera(fragCoord, rayOrigin, rayDirection);
 
-
     Ray ray = Ray(rayOrigin, rayDirection);
     
     // Marching Ray
@@ -384,7 +272,7 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
     
     if (hit.isHit){
         vec4 sceneColor = getLight(hit, ray, scene);
-        vec3 sceneRgb = mix(sceneColor.rgb, skyBoxColor, 1.-sceneColor.a); // renders skybox after hitting transparent object
+        vec3 sceneRgb = sceneColor.rgb + skyBoxColor * (1.-sceneColor.a); // renders skybox after hitting transparent object
         float dist = length(ray.origin - hit.point);        
         float fogDistance = max(0.0, dist - scene.fog.startDistance);
         float fogAmount = 1.0 - exp(-fogDistance * scene.fog.intensity);

@@ -8,6 +8,7 @@ const ivec2 VMOUSE = ivec2(1, 1);
 
 #define NLIGHTS 1
 #define RENDER_LIGHT_SPHERE
+#define ENABLE_DIRECTIONAL_LIGHT
 
 #define SPHERE_MATERIAL createSolidMaterial(vec3(1.0, 0.0, 0.0), 130., 0.7)
 #define BOX_MATERIAL createSolidMaterial(vec3(1.0, 0.0, 0.0), 10., 0.3)
@@ -50,8 +51,8 @@ Scene createScene(){
     vec3 ambientLight = dirLight.color * 0.05;
 
     Fog fog = Fog(
-        5., // dist
-        0.05, // intensity
+        10., // dist
+        0.03, // intensity
         vec3(0.) // color
     );
     
@@ -90,6 +91,23 @@ vec4 getLight(Hit hit, Ray ray, in Scene scene)
     
     vec3 outputColor = vec3(0.);
     
+    #ifdef ENABLE_DIRECTIONAL_LIGHT
+        DirectionalLight light = scene.dirLight;
+        vec3 ldir = -normalize(light.direction);
+        vec3 li = light.color * (light.intensity / (4. * PI));
+        // lambert
+        float lv = clamp(dot(ldir, hit.normal), 0., 1.);
+        
+        // specular (Phong)
+        vec3 R = reflect(ldir, hit.normal);
+        vec3 specular = li * pow(max(0.f, dot(R, ray.direction)), hit.material.specularPower);
+        
+        vec3 albedo = getAlbedo(hit);
+        vec3 diffuse = albedo * li * lv;
+
+        outputColor += (diffuse + specular * hit.material.specularIntensity); 
+    #endif
+    
     for(int i=0; i < NLIGHTS; i++) {
         PointLight light = scene.pointLights[i];
         vec3 ldir = (light.pos - hit.point);
@@ -122,7 +140,8 @@ vec4 getLight(Hit hit, Ray ray, in Scene scene)
 
         outputColor += (diffuse + specular * hit.material.specularIntensity) * shadowValue;
     }
-    return vec4(outputColor, hit.material.transparency);
+
+    return vec4(outputColor + scene.ambientLight, hit.material.transparency);
 }
 
 HitCandidate getDist(vec3 point, Scene scene){
@@ -138,6 +157,11 @@ HitCandidate getDist(vec3 point, Scene scene){
 
     float groundDist = point.y - scene.ground.height;
     if(groundDist < minDist.dist){
+        minDist.dist = groundDist;
+        minDist.material = scene.ground.material;
+    }
+
+    if(groundDist < FIXED_STEP_SIZE && minDist.material.type == M_CLOUD){
         minDist.dist = groundDist;
         minDist.material = scene.ground.material;
     }
@@ -311,7 +335,6 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
     //     float dist = length(ray.origin - hit.point);        
     //     float fogDistance = max(0.0, dist - scene.fog.startDistance);
     //     float fogAmount = 1.-exp(-fogDistance * scene.fog.intensity);
-
     //     vec3 fogColor = skyBoxColor;
     //     vec4 fogLayer = vec4(fogColor * fogAmount, fogAmount);
 

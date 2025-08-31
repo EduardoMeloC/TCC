@@ -58,7 +58,7 @@ Material createCheckerboardMaterial(vec3 albedo1, vec3 albedo2, float specularPo
 }
 
 Material createCloudMaterial(){
-    return Material(M_CLOUD, vec3(0.), 0., 0., vec3(0.), 1.);
+    return Material(M_CLOUD, vec3(0.), 0., 0., vec3(0.), 0.);
 }
 
 

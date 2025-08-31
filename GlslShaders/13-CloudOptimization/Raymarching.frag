@@ -13,6 +13,7 @@ const ivec2 VMOUSE = ivec2(1, 1);
 #define BOX_MATERIAL createSolidMaterial(vec3(1.0, 0.0, 0.0), 10., 0.3)
 
 struct Scene{
+    Ground ground;
     DirectionalLight dirLight;
     PointLight[NLIGHTS] pointLights;
     vec3 ambientLight;
@@ -20,6 +21,18 @@ struct Scene{
 };
 
 Scene createScene(){
+    Material groundMaterial = createCheckerboardMaterial(
+        vec3(0.94, 0.91, 0.86) * 0.7, // albedo1
+        vec3(0.58, 0.66, 0.57) * 0.7, // albedo2
+        1., // specular power
+        0. // specular intensity
+    );
+
+    Ground ground = Ground(
+        0.,
+        groundMaterial
+    );
+
     DirectionalLight dirLight = DirectionalLight(
         // normalize(vec3(cos(iTime), -1., -sin(iTime))),
         normalize(vec3(-2., -3., -5.)),
@@ -42,7 +55,7 @@ Scene createScene(){
         vec3(0.) // color
     );
     
-    Scene scene = Scene(dirLight, pointLights, ambientLight, fog);
+    Scene scene = Scene(ground, dirLight, pointLights, ambientLight, fog);
     return scene;
 }
 
@@ -113,17 +126,23 @@ vec4 getLight(Hit hit, Ray ray, in Scene scene)
 }
 
 HitCandidate getDist(vec3 point, Scene scene){
-    HitCandidate cloudBound = NULL_CANDIDATE;
+    HitCandidate minDist = NULL_CANDIDATE;
 
     vec3 cloudBoundCenter = vec3(0., 2., -5.);
-    float cloudBoundRadius = 4.0;
+    float cloudBoundRadius = 2.8;
     
     float cloudBoundDist = length(point - cloudBoundCenter) - cloudBoundRadius;
     
-    cloudBound.material = createCloudMaterial();
-    cloudBound.dist = cloudBoundDist;
+    minDist.material = createCloudMaterial();
+    minDist.dist = cloudBoundDist;
+
+    float groundDist = point.y - scene.ground.height;
+    if(groundDist < minDist.dist){
+        minDist.dist = groundDist;
+        minDist.material = scene.ground.material;
+    }
     
-    return cloudBound;
+    return minDist;
 }
 
 float getDensity(vec3 point, Scene scene){
@@ -150,11 +169,12 @@ vec3 getNormal(vec3 point,float d, Scene scene){
     return normalize(stretchedNormal);
 }
 
-Hit marchRay(Ray ray, Scene scene){
+vec4 marchRay(Ray ray, Scene scene){
     float distToCamera = 0.;
     bool isHit = false;
     vec3 marchPos = ray.origin;
     HitCandidate nextStepHit = NULL_CANDIDATE;
+    vec4 accumulatedColor = vec4(0.0);
     for(int stp=0; stp<MAX_MARCHING_STEPS; stp++){
         marchPos = ray.origin + (distToCamera * ray.direction);
         nextStepHit = getDist(marchPos, scene);
@@ -176,63 +196,74 @@ Hit marchRay(Ray ray, Scene scene){
         // hit a surface -> return immediately
         if(nextStepHit.dist < SURFACE_DISTANCE && nextStepHit.material.type != M_CLOUD){
             isHit = true;
-            return Hit(
+            Hit hit = Hit(
                 marchPos,
                 getNormal(marchPos, nextStepHit.dist, scene),
                 distToCamera,
                 nextStepHit.material,
                 isHit
             );
+            vec4 hitColor = getLight(hit, ray, scene);
+            accumulatedColor += hitColor * (1.0-accumulatedColor.a);
+
+            vec3 skyBoxColor = mix(vec3(0.4, 0.6, 0.8), vec3(0.7, 0.9, 1.), dot(ray.direction, vec3(0., 1., 0.)));
+            float sunDot = dot(scene.dirLight.direction * 1.224744871391589, ray.direction);
+            skyBoxColor += skyBoxColor * exp(exp(exp(-sunDot-0.2))) * scene.dirLight.color * 0.0000001;
+            float dist = length(ray.origin - hit.point);        
+            float fogDistance = max(0.0, dist - scene.fog.startDistance);
+            float fogAmount = 1.-exp(-fogDistance * scene.fog.intensity);
+            vec4 fogLayer = vec4(skyBoxColor * fogAmount, fogAmount);
+            accumulatedColor += fogLayer * (1.0 - fogAmount) ;
+
         }
 
         // if it's a cloud volume -> break and switch to volumetric march
         if(nextStepHit.dist < SURFACE_DISTANCE && nextStepHit.material.type == M_CLOUD){
-            break;
+            // ----------- VOLUMETRIC CLOUD MARCHING -----------
+
+            // Entry point is current marchPos
+            for(int stp=0; stp<FIXED_MAX_MARCHING_STEPS; stp++){
+                distToCamera += FIXED_STEP_SIZE;
+                marchPos = ray.origin + (distToCamera * ray.direction);
+                
+                // check if we left the cloud bounding volume
+                HitCandidate nextStepHit = getDist(marchPos, scene); 
+                if (nextStepHit.dist > 0. && nextStepHit.material.type != M_CLOUD) {
+                    // outside the cloud SDF, stop volumetric march
+                    break;
+                }
+
+                float density = getDensity(marchPos, scene);
+
+                if(density > 0.0){
+                    vec4 color = vec4(mix(vec3(1.0), vec3(0.3, 0.55, 0.8), density), density);
+                    color.rgb *= color.a;
+                    accumulatedColor += color * (1.0-accumulatedColor.a);
+                    
+                    // early exit if opaque
+                    if(accumulatedColor.a >= 1.) break;
+                }
+            }
+
         }
 
         // exceeded max range -> nothing hit
-        if(distToCamera > MAX_MARCHING_DISTANCE){
+        if(distToCamera > MAX_MARCHING_DISTANCE || accumulatedColor.a >= 1.){
             isHit = false;
-            return Hit(
-                marchPos,
-                vec3(0.0),
-                distToCamera,
-                NULL_MATERIAL,
-                isHit
-            );
+            break;
         }
     }
-    // ----------- VOLUMETRIC CLOUD MARCHING -----------
-    vec4 res = vec4(0.0);
-
-    // Entry point is current marchPos
-    for(int stp=0; stp<FIXED_MAX_MARCHING_STEPS; stp++){
-        marchPos = ray.origin + (distToCamera * ray.direction);
-
-        float density = getDensity(marchPos, scene);
-        distToCamera += FIXED_STEP_SIZE;
-
-        if(density > 0.0){
-            vec4 color = vec4(mix(vec3(1.0), vec3(0.3, 0.55, 0.8), density), density);
-            color.rgb *= color.a;
-            res += color * (1.0-res.a);
-            
-            // early exit if opaque
-            if(res.a > 1.) break;
-       }
-    }
-
-    Material cloudMaterial = createCloudMaterial();
-    cloudMaterial.albedo = res.rgb;
-    cloudMaterial.transparency = res.a;
-
-    return Hit(
-        marchPos,
-        vec3(0.0), // no normal for volume
-        distToCamera,
-        cloudMaterial,
-        res.a > 0.0 // "isHit" if any density was accumulated
-    );
+    // Material outputColor = createUnlitMaterial(accumulatedColor.rgb);
+    // outputColor.transparency = accumulatedColor.a;
+    return accumulatedColor;
+    // return Hit(
+    //     marchPos,
+    //     vec3(0.0), // no normal for volume
+    //     distToCamera,
+    //     outputColor,
+    //     // isHit
+    //     accumulatedColor.a > 0.0 // "isHit" if any density was accumulated
+    // );
 }
 
 void Camera(in vec2 fragCoord, out vec3 ro, out vec3 rd) 
@@ -261,7 +292,7 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
     Ray ray = Ray(rayOrigin, rayDirection);
     
     // Marching Ray
-    Hit hit = marchRay(ray, scene);
+    vec4 sceneColor = marchRay(ray, scene);
 
     // Skybox Color
     vec3 skyBoxColor = mix(vec3(0.4, 0.6, 0.8), vec3(0.7, 0.9, 1.), dot(rayDirection, vec3(0., 1., 0.)));
@@ -270,15 +301,22 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
     //vec3 skyBoxColor = vec3(0.);
     
     
-    if (hit.isHit){
-        vec4 sceneColor = getLight(hit, ray, scene);
-        vec3 sceneRgb = sceneColor.rgb + skyBoxColor * (1.-sceneColor.a); // renders skybox after hitting transparent object
-        float dist = length(ray.origin - hit.point);        
-        float fogDistance = max(0.0, dist - scene.fog.startDistance);
-        float fogAmount = 1.0 - exp(-fogDistance * scene.fog.intensity);
-        color += mix(sceneRgb, skyBoxColor, fogAmount);
-    }
-    else color = skyBoxColor;
+    // if (hit.isHit){
+    //     // vec4 sceneColor = vec4(hit.material.albedo, hit.material.transparency);
+
+    //     float dist = length(ray.origin - hit.point);        
+    //     float fogDistance = max(0.0, dist - scene.fog.startDistance);
+    //     float fogAmount = 1.-exp(-fogDistance * scene.fog.intensity);
+
+    //     vec3 fogColor = skyBoxColor;
+    //     vec4 fogLayer = vec4(fogColor * fogAmount, fogAmount);
+
+    //     // color = sceneColor.rgb + (1.0 - sceneColor.a) * skyBoxColor ;
+    //     color = vec3(fogAmount);
+    // }
+    // else color = skyBoxColor;
+    color = sceneColor.rgb + (1.0 - sceneColor.a) * skyBoxColor;
+
     
     // Output to screen
     fragColor = vec4(color,1.0);

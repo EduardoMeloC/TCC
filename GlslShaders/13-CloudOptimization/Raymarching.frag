@@ -50,8 +50,8 @@ Scene createScene(){
     vec3 ambientLight = dirLight.color * 0.05;
 
     Fog fog = Fog(
-        10., // dist
-        0.02, // intensity
+        5., // dist
+        0.05, // intensity
         vec3(0.) // color
     );
     
@@ -204,16 +204,20 @@ vec4 marchRay(Ray ray, Scene scene){
                 isHit
             );
             vec4 hitColor = getLight(hit, ray, scene);
-            accumulatedColor += hitColor * (1.0-accumulatedColor.a);
 
             vec3 skyBoxColor = mix(vec3(0.4, 0.6, 0.8), vec3(0.7, 0.9, 1.), dot(ray.direction, vec3(0., 1., 0.)));
             float sunDot = dot(scene.dirLight.direction * 1.224744871391589, ray.direction);
             skyBoxColor += skyBoxColor * exp(exp(exp(-sunDot-0.2))) * scene.dirLight.color * 0.0000001;
-            float dist = length(ray.origin - hit.point);        
+            float dist = length(ray.origin - hit.point);
             float fogDistance = max(0.0, dist - scene.fog.startDistance);
             float fogAmount = 1.-exp(-fogDistance * scene.fog.intensity);
-            vec4 fogLayer = vec4(skyBoxColor * fogAmount, fogAmount);
-            accumulatedColor += fogLayer * (1.0 - fogAmount) ;
+            vec4 fogLayer = vec4(skyBoxColor, fogAmount);
+            hitColor = fogLayer * (fogAmount) + hitColor * (1.0 - fogAmount);
+            //accumulatedColor += fogLayer * (fogAmount);
+
+            accumulatedColor += hitColor * (1.0-accumulatedColor.a);
+
+            
 
         }
 

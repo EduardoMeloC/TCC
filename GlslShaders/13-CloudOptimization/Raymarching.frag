@@ -36,16 +36,21 @@ Scene createScene(){
 
     DirectionalLight dirLight = DirectionalLight(
         // normalize(vec3(cos(iTime), -1., -sin(iTime))),
-        normalize(vec3(-2., -3., -5.)),
+        normalize(vec3(-2., -4., 5.)),
         vec3(0.788235294117647, 0.8862745098039215, 1.0),
-        20.
+        10.
     );
     
     PointLight[NLIGHTS] pointLights; 
+
+    vec3 pointLightPos = vec3(0., 2., -5.);
+    float radiusDistance = 4.;
+    pointLightPos.x += cos(iTime) * radiusDistance;
+    pointLightPos.z += sin(iTime) * radiusDistance;
     pointLights[0] = PointLight(
-        vec3(2., 2., 2.),
-        vec3(0.988235294117647, 0.9862745098039215, 0.9),
-        14.
+        pointLightPos,
+        vec3(0.988235294117647, 0., 0.9),
+        100.
     );
 
     vec3 ambientLight = dirLight.color * 0.05;
@@ -127,7 +132,7 @@ vec4 getLight(Hit hit, Ray ray, in Scene scene)
         // }
         // shadowValue = min(shadowValue, 8.*shadowHit.dist/, )
 
-        vec3 li = light.color * (light.intensity / (4. * PI));
+        vec3 li = light.color * (light.intensity / (4. * PI * r2));
         // lambert
         float lv = clamp(dot(ldir, hit.normal), 0., 1.);
 
@@ -213,7 +218,9 @@ vec4 marchRay(Ray ray, Scene scene){
                     lightHit.material = LIGHT_SPHERE.material;
                 }
             }
-            if(lightHit.dist < nextStepHit.dist) nextStepHit = lightHit;
+            if(lightHit.dist < nextStepHit.dist){
+                nextStepHit = lightHit;
+            }
         #endif
         distToCamera += nextStepHit.dist;
 
@@ -264,7 +271,37 @@ vec4 marchRay(Ray ray, Scene scene){
                 float density = getDensity(marchPos, scene);
 
                 if(density > 0.0){
-                    vec4 color = vec4(mix(vec3(1.0), vec3(0.3, 0.55, 0.8), density), density);
+                    vec3 skyBoxColor = mix(vec3(0.4, 0.6, 0.8), vec3(0.7, 0.9, 1.), dot(ray.direction, vec3(0., 1., 0.)));
+                    // Directional derivative
+                    // For fast diffuse lighting
+                    float diffuse = 0.0;
+                    vec3 accumulatedDiffuseColor = vec3(0.);
+                    #ifdef ENABLE_DIRECTIONAL_LIGHT
+                    DirectionalLight light = scene.dirLight;
+                    vec3 ldir = -normalize(light.direction);
+                    vec3 li = light.color * (light.intensity / (4. * PI));
+                    diffuse = clamp((getDensity(marchPos, scene) - getDensity(marchPos + 0.3 * ldir, scene)) / 0.3, 0.0, 1.0 );
+                    accumulatedDiffuseColor += mix(vec3(0.), li, diffuse);
+                    #endif
+                    for(int i=0; i < NLIGHTS; i++) {
+                        PointLight light = scene.pointLights[i];
+                        vec3 ldir = (light.pos - marchPos);
+                        float r = length(ldir);
+                        float r2 = r*r;
+                        ldir = normalize(ldir);
+
+                        float shadowValue = 1.;
+                        vec3 li = light.color * (light.intensity / (4. * PI * r2));
+                        // lambert
+                        diffuse = clamp((getDensity(marchPos, scene) - getDensity(marchPos + 0.3 * ldir, scene)) / 0.3, 0.0, 1.0 );
+                        accumulatedDiffuseColor += mix(vec3(0.), li, diffuse);
+                    }
+                    accumulatedDiffuseColor.rgb += skyBoxColor * 0.85;
+
+                    vec4 color = vec4(accumulatedDiffuseColor,density);
+                    //(vec4(mix(vec3(1.0), vec3(0.), density), density));
+                    // vec4 color = vec4(mix(vec3(1.0), vec3(0.3, 0.55, 0.8), density), density);
+                    // color.rgb *= lin;
                     color.rgb *= color.a;
                     accumulatedColor += color * (1.0-accumulatedColor.a);
                     

@@ -1,0 +1,27 @@
+\noaddvspace 
+\babel@toc {english}{}\relax 
+\babel@toc {english}{}\relax 
+\addvspace {10\p@ }
+\contentsline {figure}{\numberline {1}{\ignorespaces Raymarched Clouds obtained by Schneider et al.\footnotemark }}{12}{figure.caption.3}%
+\addvspace {10\p@ }
+\contentsline {figure}{\numberline {2}{\ignorespaces Above, binary search maneuver to bypass fixed step limitations, below a display of Sphere Tracing}}{19}{figure.caption.4}%
+\contentsline {figure}{\numberline {3}{\ignorespaces A problematic case of fixed step, from section 8.3 of \blx@tocontentsinit {0}\cite {book:REF_BOOK_1}}}{20}{figure.caption.5}%
+\contentsline {figure}{\numberline {4}{\ignorespaces Unlit Raymarched Sphere}}{20}{figure.caption.6}%
+\contentsline {figure}{\numberline {5}{\ignorespaces Chick}}{22}{figure.caption.7}%
+\addvspace {10\p@ }
+\contentsline {figure}{\numberline {6}{\ignorespaces Plain Colored Circle}}{25}{figure.caption.8}%
+\contentsline {figure}{\numberline {7}{\ignorespaces Custom Colored Circle}}{25}{figure.caption.8}%
+\contentsline {figure}{\numberline {8}{\ignorespaces Raymarched Sphere SDF Visualization}}{26}{figure.caption.9}%
+\contentsline {figure}{\numberline {9}{\ignorespaces Graphic of Rectangle SDF calculation}}{27}{figure.caption.10}%
+\contentsline {figure}{\numberline {10}{\ignorespaces 3D Cube SDF Visualization}}{28}{figure.caption.11}%
+\contentsline {figure}{\numberline {11}{\ignorespaces Raymarched Constructive Solid Geometry Operations with Cube and Sphere SDFs.}}{30}{figure.caption.12}%
+\contentsline {figure}{\numberline {12}{\ignorespaces Smooth Union}}{30}{figure.caption.13}%
+\contentsline {figure}{\numberline {13}{\ignorespaces Smooth Intersection}}{30}{figure.caption.13}%
+\contentsline {figure}{\numberline {14}{\ignorespaces Smooth Subtraction}}{31}{figure.caption.14}%
+\contentsline {figure}{\numberline {15}{\ignorespaces Smooth Minimum Representation}}{31}{figure.caption.14}%
+\contentsline {figure}{\numberline {16}{\ignorespaces Raymarched Smooth Operations with Cube and Sphere SDFs.}}{32}{figure.caption.15}%
+\contentsline {figure}{\numberline {17}{\ignorespaces Examples of Domain Repetition techniques.}}{33}{figure.caption.16}%
+\contentsline {figure}{\numberline {18}{\ignorespaces sphereDistance(p - 6.5*round(p/6.5), 1.0)}}{34}{figure.caption.17}%
+\contentsline {figure}{\numberline {19}{\ignorespaces Distortion on Sphere from Code 7}}{35}{figure.caption.18}%
+\addvspace {10\p@ }
+\addvspace {10\p@ }
